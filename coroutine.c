@@ -1,7 +1,6 @@
 #include "coroutine.h"
 
-extern int setreg(jmp_buf);
-extern void regjmp(jmp_buf, int);
+#include <stdlib.h>
 
 static void** __keys() {
 	void* zone;
@@ -19,9 +18,12 @@ struct coroutine* coroutine_new() {
 	void* stk = aligned_alloc(PAGE_SIZE, STK_DEFAULT_SIZE);
 	struct coroutine* coro = (struct coroutine*)stk;
 	coro->stk = stk;
-	coro->bot = stk + RED_ZONE;
+	coro->bot = stk + GREEN_ZONE;
 	coro->top = stk + (STK_DEFAULT_SIZE - RED_ZONE);
 	return coro;
+}
+void coroutine_free(struct coroutine* coro) {
+	free(coro);
 }
 
 void coroutine_init(struct coroutine* coro, coro_cb_t main) {
@@ -33,17 +35,5 @@ void coroutine_init(struct coroutine* coro, coro_cb_t main) {
 	coro->buf->__jmpbuf[0] = (long)coro->top;
 	void* keys = coro->stk + (STK_DEFAULT_SIZE - sizeof(void*) * 12);
 	((void**)keys)[0] = coro;
-}
-
-void coroutine_yield(struct coroutine* coro) {
-	if(setreg(coro->buf) == 0) {
-		regjmp(coro->env, 1);
-	}
-}
-
-void coroutine_call(struct coroutine* coro) {
-	if(setreg(coro->env) == 0) {
-		regjmp(coro->buf, 1);
-	}
 }
 

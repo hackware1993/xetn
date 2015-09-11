@@ -2,9 +2,9 @@
 #define _COROUTINE_H_
 
 #include <setjmp.h>
-#include <stdlib.h>
 
 #define RED_ZONE 128
+#define GREEN_ZONE 512
 #define PAGE_SIZE 4096
 #define STK_DEFAULT_SIZE (64 * 1024)
 
@@ -26,10 +26,20 @@ struct coroutine {
 
 struct coroutine* coroutine_new(void);
 
+void coroutine_free(struct coroutine*);
+
 void coroutine_init(struct coroutine*, coro_cb_t);
 
-void coroutine_yield(struct coroutine*);
+extern int setreg(jmp_buf);
 
-void coroutine_call(struct coroutine*);
+extern void regjmp(jmp_buf, int);
+
+#define coroutine_yield(coro)    \
+	if(setreg((coro)->buf) == 0) \
+		regjmp((coro)->env, 1)
+
+#define coroutine_call(coro)      \
+	if(setreg((coro)->env) == 0) \
+		regjmp((coro)->buf, 1)
 
 #endif // _COROUTINE_H_
