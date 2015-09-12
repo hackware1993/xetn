@@ -2,6 +2,7 @@
 #define _COROUTINE_H_
 
 #include <setjmp.h>
+#include <stdlib.h>
 
 #define RED_ZONE 128
 #define GREEN_ZONE 512
@@ -12,7 +13,7 @@ struct coroutine;
 
 typedef void (*coro_cb_t)(struct coroutine*);
 
-struct coroutine {
+typedef struct coroutine {
 	jmp_buf env;
 	jmp_buf buf;
 	void* stk;
@@ -22,13 +23,14 @@ struct coroutine {
 	coro_cb_t main;
 	void* res;
 	void* args;
-};
+} *coroutine_t;
 
-struct coroutine* coroutine_new(void);
+coroutine_t coroutine_new(void);
 
-void coroutine_free(struct coroutine*);
+#define coroutine_free(coro) free((coro))
+//void coroutine_free(coroutine_t);
 
-void coroutine_init(struct coroutine*, coro_cb_t);
+void coroutine_init(coroutine_t, coro_cb_t);
 
 extern int setreg(jmp_buf);
 

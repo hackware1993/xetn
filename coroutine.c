@@ -1,7 +1,5 @@
 #include "coroutine.h"
 
-#include <stdlib.h>
-
 static void** __keys() {
 	void* zone;
 	zone = (void*)(((long)&zone + PAGE_SIZE - 1) / PAGE_SIZE * PAGE_SIZE);
@@ -10,23 +8,20 @@ static void** __keys() {
 }
 
 static void __bridge() {
-	struct coroutine* coro = (struct coroutine*)__keys()[0];
+	coroutine_t coro = (coroutine_t)__keys()[0];
 	coro->main(coro);
 }
 
-struct coroutine* coroutine_new() {
+coroutine_t coroutine_new() {
 	void* stk = aligned_alloc(PAGE_SIZE, STK_DEFAULT_SIZE);
-	struct coroutine* coro = (struct coroutine*)stk;
+	coroutine_t coro = (coroutine_t)stk;
 	coro->stk = stk;
 	coro->bot = stk + GREEN_ZONE;
 	coro->top = stk + (STK_DEFAULT_SIZE - RED_ZONE);
 	return coro;
 }
-void coroutine_free(struct coroutine* coro) {
-	free(coro);
-}
 
-void coroutine_init(struct coroutine* coro, coro_cb_t main) {
+void coroutine_init(coroutine_t coro, coro_cb_t main) {
 	if(setreg(coro->buf)) {
 		__bridge();
 	}
