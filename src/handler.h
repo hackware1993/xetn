@@ -17,6 +17,7 @@ typedef struct handler {
 	htype_t type;
 } *handler_t;
 
+#define handler_create(f, t) {(f), (t)}
 #define handler_close(h) close((h)->fileno)
 
 #endif // _HANDLER_H_
