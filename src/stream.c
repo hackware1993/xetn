@@ -5,8 +5,8 @@
 #include <unistd.h>
 #include <errno.h>
 
-iostate_t sockstream_read(handler_t sock, buffer_t buf) {
-	fd_t fd = sock->fileno;
+iostate_t stream_read(handler_t handler, buffer_t buf) {
+	fd_t fd = handler->fileno;
 	char* ptr = buffer_get_ptr(buf) + buffer_get_len(buf);
 	size_t nleft = buffer_get_lim(buf) - buffer_get_len(buf);
 	ssize_t nread = 0;
@@ -33,8 +33,8 @@ iostate_t sockstream_read(handler_t sock, buffer_t buf) {
 	return S_FULL;
 }
 
-iostate_t sockstream_write(handler_t sock, buffer_t buf) {
-	fd_t fd = sock->fileno;
+iostate_t stream_write(handler_t sock, buffer_t buf) {
+	fd_t fd = handler->fileno;
 	char* ptr = buffer_get_ptr(buf) + buffer_get_pos(buf);
 	size_t nleft = buffer_get_len(buf) - buffer_get_pos(buf);
 	ssize_t nwritten = 0;
