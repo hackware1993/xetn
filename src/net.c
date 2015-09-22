@@ -1,11 +1,14 @@
 #include "net.h"
 
+
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <netdb.h>
 #include <stdio.h>
 #include <string.h>
+#include <errno.h>
 
-#define SA_SIZE sizeof(struct sockaddr)
-
-void sockaddr_get(struct sockaddr* addr, const char* ip, uint16_t port) {
+void sockaddr_get(sockaddr_t addr, const char* ip, uint16_t port) {
 	struct addrinfo hints;
 	struct addrinfo* res;
 	hints.ai_flags = AI_PASSIVE
@@ -25,7 +28,7 @@ void sockaddr_get(struct sockaddr* addr, const char* ip, uint16_t port) {
 }
 
 /* the return value MUST be free */
-const char* sockaddr_get_addr(struct sockaddr* addr) {
+const char* sockaddr_get_addr(sockaddr_t addr) {
 	const char* paddr = NULL;
 	if(addr->sa_family == AF_INET) {
 		struct sockaddr_in* taddr = (struct sockaddr_in*)addr;
@@ -42,7 +45,7 @@ const char* sockaddr_get_addr(struct sockaddr* addr) {
 	return strdup(paddr);
 }
 
-uint16_t sockaddr_get_port(struct sockaddr* addr) {
+uint16_t sockaddr_get_port(sockaddr_t addr) {
 	uint16_t port;
 	if(addr->sa_family == AF_INET) {
 		port = (sockaddr_in*)addr->sin_port;
@@ -52,27 +55,35 @@ uint16_t sockaddr_get_port(struct sockaddr* addr) {
 	return ntohs(port);
 }
 
-handler_t sock_create() {
+void sock_create(handler_t sock) {
 	int fd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 	if(ret == -1) {
 		perror("sock_create");
 		exit(EXIT_FAILURE);
 	}
-	return {fd, H_SOCK};
+	sock->fileno = fd;
+	sock->type = H_SOCK;
 }
 
-handler_t sock_accept(handler_t sock) {
+/* repeat until getting NULL under nonblocking mode */
+handler_t sock_accept(handler_t sock, handler_t target) {
 	int fd = accept(sock.fileno, NULL, NULL);
-	if(ret != 0) {
+	if(ret == -1) {
+		/* EAGAIN MUST be chcked under nonblocking mode */
+		if(errno == EAGAIN) {
+			return NULL;
+		}
 		perror("sock_accept");
 		exit(EXIT_FAILURE);
 	}
-	return {fd, H_SOCK};
+	target->fileno = fd;
+	target->type = H_SOCK;
+	return target;
 }
 
 void sock_listen(handler_t sock, sockaddr_t addr) {
-	int fd = sock.fileno;
-	int ret = bind(fd, addr, SA_SIZE);
+	int fd = sock->fileno;
+	int ret = bind(fd, addr, sizeof(struct sockaddr));
 	if(ret != 0) {
 		perror("sock_listen");
 		exit(EXIT_FAILURE);
@@ -81,10 +92,17 @@ void sock_listen(handler_t sock, sockaddr_t addr) {
 }
 
 void sock_connect(handler_t sock, sockaddr_t addr) {
-	int ret = connect(sock.fileno, addr, SA_SIZE);
-	if(ret != 0) {
+	int ret = connect(sock->fileno, addr, sizeof(struct sockaddr));
+	if(ret == -1) {
 		perror("sock_connect");
 		exit(EXIT_FAILURE);
 	}
 }
 
+void sock_get_addr(handler_t sock, sockaddr_t addr) {
+	int ret = getsockname(sock->fileno, addr, sizeof(struct sockaddr));
+	if(ret == -1) {
+		perror("sock_get_addr");
+		exit(EXIT_FAILURE);
+	}
+}

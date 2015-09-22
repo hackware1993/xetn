@@ -4,20 +4,20 @@
 #include "handler.h"
 
 #include <stdint.h>
+/* provide sockaddr symbol */
 #include <sys/socket.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
-#include <netdb.h>
 
 typedef sockaddr *sockaddr_t;
 
-handler_t sock_create();
+void sock_create(handler_t);
 
-handler_t sock_accept(handler_t);
+handler_t sock_accept(handler_t, handler_t);
 
 void sock_listen(handler_t, sockaddr_t);
 
 void sock_connect(handler_t, sockaddr_t);
+
+void sock_get_addr(handler_t, sockaddr_t);
 
 void sockaddr_get(sockaddr_t, const char*, uint16_t);
 
