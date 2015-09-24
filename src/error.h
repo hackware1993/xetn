@@ -15,4 +15,10 @@ const char* error_name(error_t);
 
 const char* error_desc(error_t);
 
+#define error_exit(s, e, f) \
+	if((s) != (e)) {          \
+		perror(#f);         \
+		exit(EXIT_FAILURE); \
+	}
+
 #endif // _ERROR_H_
