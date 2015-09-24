@@ -1,6 +1,9 @@
 #ifndef _ERROR_H_
 #define _ERROR_H_
 
+#include <stdio.h>
+#include <stdlib.h>
+
 #define ERR_MAP(XX) \
 	XX(0, NONE, "OK")     \
 	XX(1, TYPE, "INVALID TYPE")     
