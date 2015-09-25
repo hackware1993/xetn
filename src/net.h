@@ -7,48 +7,50 @@
 /* provide sockaddr symbol */
 #include <sys/socket.h>
 
-typedef sockaddr *sockaddr_t;
+typedef struct sockaddr sockaddr_t;
 
-void sock_create(handler_t);
+typedef sockaddr_t* SockAddr;
 
-handler_t sock_accept(handler_t, handler_t);
+Handler sock_create(Handler);
 
-void sock_listen(handler_t, sockaddr_t);
+Handler sock_accept(Handler, Handler);
 
-void sock_connect(handler_t, sockaddr_t);
+void sock_listen(Handler, SockAddr);
 
-void sock_get_addr(handler_t, sockaddr_t);
+void sock_connect(Handler, SockAddr);
 
-int32_t sock_get_errno(handler_t);
+void sock_get_addr(Handler, SockAddr);
 
-uint32_t sock_get_nonblock(handler_t);
+int32_t sock_get_errno(Handler);
 
-void sock_set_nonblock(handler_t, uint32_t);
+uint32_t sock_get_nonblock(Handler);
 
-uint32_t sock_get_keepalive(handler_t);
+void sock_set_nonblock(Handler, uint32_t);
 
-void sock_set_keepalive(handler_t, uint32_t);
+uint32_t sock_get_keepalive(Handler);
 
-uint32_t sock_get_reuseaddr(handler_t);
+void sock_set_keepalive(Handler, uint32_t);
 
-void sock_set_reuseaddr(handler_t, uint32_t);
+uint32_t sock_get_reuseaddr(Handler);
 
-uint32_t sock_get_nodelay(handler_t);
+void sock_set_reuseaddr(Handler, uint32_t);
 
-void sock_set_nodelay(handler_t, uint32_t);
+uint32_t sock_get_nodelay(Handler);
 
-uint32_t sock_get_sendbuf(handler_t);
+void sock_set_nodelay(Handler, uint32_t);
 
-void sock_set_sendbuf(handler_t, uint32_t);
+uint32_t sock_get_sendbuf(Handler);
 
-uint32_t sock_get_recvbuf(handler_t);
+void sock_set_sendbuf(Handler, uint32_t);
 
-void sock_set_recvbuf(handler_t, uint32_t);
+uint32_t sock_get_recvbuf(Handler);
 
-void sockaddr_get(sockaddr_t, const char*, uint16_t);
+void sock_set_recvbuf(Handler, uint32_t);
 
-const char* sockaddr_get_addr(sockaddr_t);
+SockAddr sockaddr_get(SockAddr, const char*, uint16_t);
 
-uint16_t sockaddr_get_port(sockaddr_t);
+const char* sockaddr_get_addr(SockAddr);
+
+uint16_t sockaddr_get_port(SockAddr);
 
 #endif // _NET_H_
