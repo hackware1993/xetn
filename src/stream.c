@@ -5,7 +5,7 @@
 #include <unistd.h>
 #include <errno.h>
 
-iostate_t stream_read(handler_t handler, buffer_t buf) {
+iostate_t stream_read(Handler handler, Buffer buf) {
 	fd_t fd = handler->fileno;
 	char* ptr = buffer_get_ptr(buf) + buffer_get_len(buf);
 	size_t nleft = buffer_get_lim(buf) - buffer_get_len(buf);
@@ -17,7 +17,7 @@ iostate_t stream_read(handler_t handler, buffer_t buf) {
 					nread = 0;
 					break;
 				case EAGAIN:
-					buffer_set_len(buf, buf_get_lim(buf) - nleft);
+					buffer_set_len(buf, buffer_get_lim(buf) - nleft);
 					return S_PEND;
 				default:
 					return S_ERR;
@@ -33,7 +33,7 @@ iostate_t stream_read(handler_t handler, buffer_t buf) {
 	return S_FULL;
 }
 
-iostate_t stream_write(handler_t sock, buffer_t buf) {
+iostate_t stream_write(Handler handler, Buffer buf) {
 	fd_t fd = handler->fileno;
 	char* ptr = buffer_get_ptr(buf) + buffer_get_pos(buf);
 	size_t nleft = buffer_get_len(buf) - buffer_get_pos(buf);
