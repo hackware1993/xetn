@@ -18,8 +18,8 @@ const char* error_name(error_t);
 
 const char* error_desc(error_t);
 
-#define error_detect(s, e, f) \
-	if((s) == (e)) {          \
+#define error_exit(s, f) \
+	if(s) {          \
 		perror(#f);         \
 		exit(EXIT_FAILURE); \
 	}

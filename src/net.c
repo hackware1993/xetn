@@ -55,19 +55,19 @@ uint16_t sockaddr_get_port(sockaddr_t addr) {
 
 void sock_create(handler_t sock) {
 	int32_t fd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-	error_detect(fd == -1, sock_create);
+	error_exit(fd == -1, sock_create);
 	*sock = handler_create(fd, H_SOCK);
 }
 
 /* repeat until getting NULL under nonblocking mode */
 handler_t sock_accept(handler_t sock, handler_t target) {
-	fd_t fd = accept(sock.fileno, NULL, NULL);
+	fd_t fd = accept(sock->fileno, NULL, NULL);
 	if(fd == -1) {
 		/* EAGAIN MUST be chcked under nonblocking mode */
 		if(errno == EAGAIN) {
 			return NULL;
 		}
-		error_detect(true, sock_accept);
+		error_exit(true, sock_accept);
 	}
 	*target = handler_create(fd, H_SOCK);
 	return target;
@@ -76,18 +76,18 @@ handler_t sock_accept(handler_t sock, handler_t target) {
 void sock_listen(handler_t sock, sockaddr_t addr) {
 	fd_t fd = sock->fileno;
 	int32_t ret = bind(fd, addr, sizeof(struct sockaddr));
-	error_detect(ret == -1, sock_listen);
+	error_exit(ret == -1, sock_listen);
 	ret = listen(fd, SOMAXCONN);
 }
 
 void sock_connect(handler_t sock, sockaddr_t addr) {
 	int32_t ret = connect(sock->fileno, addr, sizeof(struct sockaddr));
-	error_detect(ret == -1, sock_connect);
+	error_exit(ret == -1, sock_connect);
 }
 
 void sock_get_addr(handler_t sock, sockaddr_t addr) {
 	int32_t ret = getsockname(sock->fileno, addr, sizeof(struct sockaddr));
-	error_detect(ret == -1, sock_get_addr);
+	error_exit(ret == -1, sock_get_addr);
 }
 
 int32_t sock_get_errno(handler_t sock) {
@@ -96,21 +96,21 @@ int32_t sock_get_errno(handler_t sock) {
 	socklen_t len = sizeof(res);
 	int32_t ret = getsockopt(fd, SOL_SOCKET, SO_ERROR,
 			&res, &len);
-	error_detect(ret == -1, sock_get_errno);
+	error_exit(ret == -1, sock_get_errno);
 	return res;
 }
 
 uint32_t sock_get_nonblock(handler_t sock) {
 	fd_t fd = sock->fileno;
 	int flags = fcntl(fd, F_GETFL, 0);
-	error_detect(ret < 0,  sock_get_nonblock);
+	error_exit(ret < 0,  sock_get_nonblock);
 	return flags & O_NONBLOCK;
 }
 
 void sock_set_nonblock(handler_t sock, uint32_t opt) {
 	fd_t fd = sock->fileno;
 	int flags = fcntl(fd, F_GETFL, 0);
-	error_detect(ret < 0,  sock_set_nonblock);
+	error_exit(ret < 0,  sock_set_nonblock);
 
 	int ret;
 	if(opt != 0) {
@@ -119,7 +119,7 @@ void sock_set_nonblock(handler_t sock, uint32_t opt) {
 		// TODO check here
 		ret = fcntl(fd, F_SETFL, flags & ~O_NONBLOCK);
 	}
-	error_detect(ret == -1,  sock_set_nonblock);
+	error_exit(ret == -1,  sock_set_nonblock);
 }
 
 uint32_t sock_get_keepalive(handler_t sock) {
@@ -128,7 +128,7 @@ uint32_t sock_get_keepalive(handler_t sock) {
 	socklen_t len = sizeof(opt);
 	int32_t ret = getsockopt(fd, SOL_SOCKET, SO_KEEPALIVE,
 			&opt, &len);
-	error_detect(ret == -1, sock_get_keepalive);
+	error_exit(ret == -1, sock_get_keepalive);
 	return opt;
 }
 
@@ -136,7 +136,7 @@ void sock_set_keepalive(handler_t sock, uint32_t opt) {
 	fd_t fd = sock->fileno;
 	int32_t ret = setsockopt(fd, SOL_SOCKET, SO_KEEPALIVE,
 			&opt, (socklen_t)sizeof(opt));
-	error_detect(ret == -1, sock_set_keepalive);
+	error_exit(ret == -1, sock_set_keepalive);
 }
 
 uint32_t sock_get_sendbuf(handler_t sock) {
@@ -145,7 +145,7 @@ uint32_t sock_get_sendbuf(handler_t sock) {
 	socklen_t len = sizeof(size);
 	int32_t ret = getsockopt(fd, SOL_SOCKET, SO_SNDBUF,
 			&size, &len);
-	error_detect(ret == -1, sock_get_sendbuf);
+	error_exit(ret == -1, sock_get_sendbuf);
 	return size;
 }
 
@@ -155,7 +155,7 @@ void sock_set_sendbuf(handler_t sock, uint32_t size) {
 	socklen_t len = sizeof(size);
 	int32_t ret = setsockopt(fd, SOL_SOCKET, SO_SNDVBUF,
 			&size, len);
-	error_detect(ret == -1, sock_set_sendbuf);
+	error_exit(ret == -1, sock_set_sendbuf);
 }
 
 uint32_t sock_get_recvbuf(handler_t sock) {
@@ -164,7 +164,7 @@ uint32_t sock_get_recvbuf(handler_t sock) {
 	socklen_t len = sizeof(size);
 	int32_t ret = getsockopt(fd, SOL_SOCKET, SO_RCVBUF,
 			&size, &len);
-	error_detect(ret == -1, sock_get_recvbuf);
+	error_exit(ret == -1, sock_get_recvbuf);
 	return size;
 }
 
@@ -174,14 +174,14 @@ void sock_set_recvbuf(handler_t sock, uint32_t size) {
 	socklen_t len = sizeof(size);
 	int32_t ret = setsockopt(fd, SOL_SOCKET, SO_RCVBUF,
 			&size, len);
-	error_detect(ret == -1, sock_set_recvbuf);
+	error_exit(ret == -1, sock_set_recvbuf);
 }
 
 void sock_set_reuseaddr(handler_t sock, uint32_t opt) {
 	fd_t fd = sock->fileno;
 	int32_t ret = setsockopt(fd, SOL_SOCKET, SO_REUSEADDR,
 			&opt, (socklen_t)sizeof(opt));
-	error_detect(ret == -1, sock_set_reuseaddr);
+	error_exit(ret == -1, sock_set_reuseaddr);
 }
 
 uint32_t sock_get_reuseaddr(handler_t sock) {
@@ -190,7 +190,7 @@ uint32_t sock_get_reuseaddr(handler_t sock) {
 	socklen_t len = sizeof(opt);
 	int32_t ret = getsockopt(fd, SOL_SOCKET, SO_REUSEADDR,
 			&opt, &len);
-	error_detect(ret == -1, sock_get_reuseaddr);
+	error_exit(ret == -1, sock_get_reuseaddr);
 	return opt;
 }
 
@@ -198,7 +198,7 @@ void sock_set_nodelay(handler_t sock, uint32_t opt) {
 	fd_t fd = sock->fileno;
 	int32_t ret = setsockopt(fd, IPPROTO_TCP, TCP_NODELAY,
 			&opt, (socklen_t)sizeof(opt));
-	error_detect(ret == -1, sock_set_nodelay);
+	error_exit(ret == -1, sock_set_nodelay);
 }
 
 uint32_t sock_get_nodelay(handler_t sock) {
@@ -207,6 +207,6 @@ uint32_t sock_get_nodelay(handler_t sock) {
 	socklen_t len = sizeof(opt);
 	int32_t ret = getsockopt(fd, IPPROTO_TCP, TCP_NODELAY,
 			&opt, &len);
-	error_detect(ret == -1, sock_get_nodelay);
+	error_exit(ret == -1, sock_get_nodelay);
 	return opt;
 }
