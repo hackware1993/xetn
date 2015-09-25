@@ -6,7 +6,7 @@
 #include <cmocka.h>
 
 static int test_setup(void** state) {
-	buffer_t buf = buffer_new(10);
+	Buffer buf = buffer_new(10);
 	*state = buf;
 	return 0;
 }
@@ -59,7 +59,7 @@ static void test_buffer_is_macro(void** state) {
 }
 
 static void test_buffer_new(void** state) {
-	buffer_t buf = (buffer_t)*state;
+	Buffer buf = (Buffer)*state;
 	assert_non_null(buf);
 	//assert_non_null(buffer_get_ptr(buf));
 	assert_int_equal(buffer_get_pos(buf), 0);
@@ -70,7 +70,7 @@ static void test_buffer_new(void** state) {
 }
 
 static void test_buffer_put_get(void** state) {
-	buffer_t buf = (buffer_t)*state;
+	Buffer buf = (Buffer)*state;
 	/* test for buffer_put */
 	buffer_put(buf, 'h');
 	assert_int_equal(buffer_get_len(buf), 1);
@@ -111,41 +111,8 @@ static void test_buffer_put_get(void** state) {
 	assert_true(buffer_is_empty(buf));
 }
 
-static void test_buffer_get_between(void** state) {
-	buffer_t buf = (buffer_t)*state;
-	assert_int_equal(buffer_get_len(buf), 0);
-	assert_int_equal(buffer_get_cap(buf), 10);
-	/* build test content for buffer */
-	int i;
-	for(i = 0; i < buffer_get_lim(buf); ++i) {
-		buf->ptr[i] = '0' + i;
-	}
-	assert_memory_equal(buffer_get_ptr(buf), "0123456789", 10);
-
-	char* str;
-	str = buffer_get_between(buf, 0, 10);
-	assert_memory_equal(buffer_get_ptr(buf), str, 10);
-	free(str);
-
-	str = buffer_get_between(buf, 1, 9);
-	assert_memory_equal(buffer_get_ptr(buf) + 1, str, 9);
-	free(str);
-
-	str = buffer_get_between(buf, 5, 5);
-	assert_memory_equal(buffer_get_ptr(buf) + 5, str, 5);
-	free(str);
-
-	str = buffer_get_between(buf, 8, 2);
-	assert_memory_equal(buffer_get_ptr(buf) + 8, str, 2);
-	free(str);
-
-	str = buffer_get_between(buf, 9, 1);
-	assert_memory_equal(buffer_get_ptr(buf) + 9, str, 1);
-	free(str);
-}
-
 static void test_buffer_get_put_arr(void** state) {
-	buffer_t buf = (buffer_t)*state;
+	Buffer buf = (Buffer)*state;
 	unsigned len = 0;
 	char sarr[] = "hello";
 	len = buffer_put_arr(buf, sarr, 0, 5);
@@ -195,7 +162,6 @@ int main() {
 		cmocka_unit_test(test_buffer_is_macro),
 		cmocka_unit_test_setup_teardown(test_buffer_new, test_setup, test_teardown),
 		cmocka_unit_test_setup_teardown(test_buffer_put_get, test_setup, test_teardown),
-		cmocka_unit_test_setup_teardown(test_buffer_get_between, test_setup, test_teardown),
 		cmocka_unit_test_setup_teardown(test_buffer_get_put_arr, test_setup, test_teardown),
 	};
 	return cmocka_run_group_tests(tests, NULL, NULL);

@@ -1,6 +1,8 @@
 #ifndef _BUFFER_H_
 #define _BUFFER_H_
 
+#include <stdint.h>
+#include <stddef.h>
 #include <stdlib.h>
 
 typedef struct buffer {
@@ -10,9 +12,10 @@ typedef struct buffer {
 	unsigned cap;
 	char     ptr[0];
 	// int appendable;
-} *buffer_t;
+} buffer_t;
+typedef struct buffer* Buffer;
 
-buffer_t buffer_new(unsigned);
+Buffer buffer_new(uint32_t);
 
 #define buffer_free(buf) free((buf))
 
@@ -53,10 +56,8 @@ buffer_t buffer_new(unsigned);
 
 #define buffer_set_by_index(buf, i, v) (buf)->ptr[(i)] = (v)
 
-char* buffer_get_between(buffer_t, unsigned, unsigned);
+uint32_t buffer_put_arr(Buffer, char*, uint32_t, size_t);
 
-unsigned buffer_put_arr(buffer_t, char*, unsigned, unsigned);
-
-unsigned buffer_get_arr(buffer_t, char*, unsigned, unsigned);
+uint32_t buffer_get_arr(Buffer, char*, uint32_t, size_t);
 
 #endif // _BUFFER_H_
