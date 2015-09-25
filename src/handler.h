@@ -1,5 +1,5 @@
 #ifndef _HANDLER_H_
-#define _HAHDLER_H_
+#define _HANDLER_H_
 
 #include <unistd.h>
 
@@ -15,9 +15,11 @@ typedef enum htype {
 typedef struct handler {
 	fd_t    fileno;
 	htype_t type;
-} *handler_t;
+} handler_t;
 
-#define handler_create(f, t) {(f), (t)}
+typedef handler_t* Handler;
+
+#define handler_create(f, t)  {(f), (t)}
 #define handler_close(h) close((h)->fileno)
 
 #endif // _HANDLER_H_
