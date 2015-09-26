@@ -10,24 +10,85 @@
 #include <errno.h>
 #include <fcntl.h>
 
-SockAddr sockaddr_get(SockAddr addr, const char* ip, uint16_t port) {
+#define PRIVATE static
+#define TCP 0x3a706374
+#define UDP 0x3a706475
+#define SLSL 0x2f2f
+
+typedef struct __addr {
+	unsigned type;
+	char*    host;
+	char*    serv;
+} __addr_t;
+
+#define __addr_free(a) free((a)->host)
+
+PRIVATE __addr_t* __addr_get(__addr_t* res, const char* addr) {
+	const char* p = addr;
+	int type = *(int*)p;
+	switch(type) {
+		case TCP:
+			res->type = 0;
+			break;
+		case UDP:
+			res->type = 1;
+			break;
+		default:
+			return NULL;
+	}
+	p += 4;
+	short ss = *(short*)p;
+	if(ss != SLSL) {
+		return NULL;
+	}
+	p += 2;
+	int len = strlen(p);
+	int i = len - 1;
+	while(i > -1 && p[i] != ':') {
+		--i;
+	}
+	if(i == -1) {
+		return NULL;
+	}
+	char* temp = (char*)malloc(len + 1);
+	strcpy(temp, p);
+	temp[i] = '\0';
+	res->host = temp;
+	res->serv = temp + i + 1;
+	return res;
+}
+
+SockAddr sockaddr_get(SockAddr addr, const char* hs) {
+	__addr_t taddr;
+	__addr_t* ret = __addr_get(&taddr, hs);
+	if(ret == NULL) {
+		fprintf(stderr, "sockaddr_get: %s\n", "invalid addr");
+		exit(EXIT_FAILURE);
+	}
+
 	struct addrinfo hints;
 	struct addrinfo* res;
 	hints.ai_flags = AI_PASSIVE
 	               | AI_NUMERICHOST
 				   | AI_NUMERICSERV;
 	hints.ai_family = AF_UNSPEC;
-	hints.ai_socktype = SOCK_STREAM;
-	hints.ai_protocol = IPPROTO_TCP;
-	char serv[6]; // 65535 upmost 5B + 1B(\0)
-	sprintf(serv, "%hu", port);
-	int32_t ret = getaddrinfo(ip, serv, &hints, &res);
-	if(ret != 0) {
-		fprintf(stderr, "sockaddr_get: %s\n", gai_strerror(ret));
+	if(ret->type == 0) {
+		hints.ai_socktype = SOCK_STREAM;
+		hints.ai_protocol = IPPROTO_TCP;
+	} else {
+		hints.ai_socktype = SOCK_DGRAM;
+		hints.ai_protocol = IPPROTO_UDP;
+	}
+	//char serv[6]; // 65535 upmost 5B + 1B(\0)
+	//sprintf(serv, "%hu", port);
+	int32_t stat = getaddrinfo(ret->host, ret->serv, &hints, &res);
+	if(stat != 0) {
+		fprintf(stderr, "sockaddr_get: %s\n", gai_strerror(stat));
 		exit(EXIT_FAILURE);
 	}
 	*addr = *res->ai_addr;
 	freeaddrinfo(res);
+	__addr_free(ret);
 	return addr;
 }
 

@@ -47,7 +47,7 @@ uint32_t sock_get_recvbuf(Handler);
 
 void sock_set_recvbuf(Handler, uint32_t);
 
-SockAddr sockaddr_get(SockAddr, const char*, uint16_t);
+SockAddr sockaddr_get(SockAddr, const char*);
 
 const char* sockaddr_get_addr(SockAddr);
 
