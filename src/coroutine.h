@@ -1,7 +1,12 @@
+/*
+ * Linux and FreeBSD compatible Coroutine implementation.
+ * Not ready for Windows currently.
+ */
 #ifndef _COROUTINE_H_
 #define _COROUTINE_H_
 
 #include <stdlib.h>
+#include <stddef.h>
 
 #define RED_ZONE 128
 #define GREEN_ZONE 512
@@ -72,9 +77,18 @@ extern void regjmp(regbuf_t, int);
 		regjmp((coro)->env, -1);    \
 	}
 
+/* the following macros is used to get or judge the status of coroutine */
 #define coroutine_status(coro) (coro)->state
 
-/* For Debug */
+#define coroutine_is_init(coro) (coro)->state == C_INIT
+
+#define coroutine_is_pend(coro) (coro)->state == C_PEND
+
+#define coroutine_is_run(coro) (coro)->state == C_RUN
+
+#define coroutine_is_end(coro) (coro)->state == C_END
+
+/* functions for Debug */
 #if defined(DEBUG)
 void coroutine_dump_regs(Coroutine);
 

@@ -1,6 +1,7 @@
 #include "coroutine.h"
 
 #include <stdio.h>
+#include <stdint.h>
 
 #define PRIVATE static
 
@@ -59,21 +60,21 @@ void coroutine_init(Coroutine coro, regbuf_t ctx, coro_cb_t main) {
 /* the following functions is used for DEBUG */
 void coroutine_dump_regs(Coroutine coro) {
 #if defined(__i386__)
-	printf("[\e[1;32mSP\e[0m] %08X\n", coro->env[0]);
-	printf("[\e[1;32mBX\e[0m] %08X\n", coro->env[1]);
-	printf("[\e[1;32mSI\e[0m] %08X\n", coro->env[2]);
-	printf("[\e[1;32mDI\e[0m] %08X\n", coro->env[3]);
-	printf("[\e[1;32mBP\e[0m] %08X\n", coro->env[4]);
-	printf("[\e[1;32mPC\e[0m] %08X\n", coro->env[5]);
+	printf("[\e[1;32mSP\e[0m] %08X\n", (uint32_t)(coro->env[0]));
+	printf("[\e[1;32mBX\e[0m] %08X\n", (uint32_t)(coro->env[1]));
+	printf("[\e[1;32mSI\e[0m] %08X\n", (uint32_t)(coro->env[2]));
+	printf("[\e[1;32mDI\e[0m] %08X\n", (uint32_t)(coro->env[3]));
+	printf("[\e[1;32mBP\e[0m] %08X\n", (uint32_t)(coro->env[4]));
+	printf("[\e[1;32mPC\e[0m] %08X\n", (uint32_t)(coro->env[5]));
 #elif defined(__amd64__) || defined(__x86_64__)
-	printf("[\e[1;32mRSP\e[0m] %016lx\n", coro->env[0]);
-	printf("[\e[1;32mRBX\e[0m] %016lx\n", coro->env[1]);
-	printf("[\e[1;32mRBP\e[0m] %016lx\n", coro->env[2]);
-	printf("[\e[1;32mR12\e[0m] %016lx\n", coro->env[3]);
-	printf("[\e[1;32mR13\e[0m] %016lx\n", coro->env[4]);
-	printf("[\e[1;32mR14\e[0m] %016lx\n", coro->env[5]);
-	printf("[\e[1;32mR15\e[0m] %016lx\n", coro->env[6]);
-	printf("[\e[1;32mRPC\e[0m] %016lx\n", coro->env[7]);
+	printf("[\e[1;32mRSP\e[0m] %016lX\n", (uint64_t)(coro->env[0]));
+	printf("[\e[1;32mRBX\e[0m] %016lX\n", (uint64_t)(coro->env[1]));
+	printf("[\e[1;32mRBP\e[0m] %016lX\n", (uint64_t)(coro->env[2]));
+	printf("[\e[1;32mR12\e[0m] %016lX\n", (uint64_t)(coro->env[3]));
+	printf("[\e[1;32mR13\e[0m] %016lX\n", (uint64_t)(coro->env[4]));
+	printf("[\e[1;32mR14\e[0m] %016lX\n", (uint64_t)(coro->env[5]));
+	printf("[\e[1;32mR15\e[0m] %016lX\n", (uint64_t)(coro->env[6]));
+	printf("[\e[1;32mRPC\e[0m] %016lX\n", (uint64_t)(coro->env[7]));
 #endif
 }
 
@@ -91,12 +92,16 @@ void coroutine_dump_stack(Coroutine coro) {
 	void* p = coro->top + (-PLEN * PLEN);
 	int i;
 	while(p >= coro->bot) {
-		printf("[\e[1;32m%X\e[0m]", p);
+	#if defined(__i386__)
+		printf("[\e[1;32m%08X\e[0m]", (uint32_t)p);
+	#elif defined(__amd64__) || defined(__x86_64__)
+		printf("[\e[1;32m%016lX\e[0m]", (uint64_t)p);
+	#endif
 		for(i = 0; i < PLEN; ++i) {
 		#if defined(__i386__)
-			printf(" %08X", *((long*)p + i));
+			printf(" %08X", *((uint32_t*)p + i));
 		#elif defined(__amd64__) || defined(__x86_64__)
-			printf(" %016lX", *((long*)p + i));
+			printf(" %016lX", *((uint64_t*)p + i));
 		#endif
 		}
 		printf("\n");
