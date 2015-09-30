@@ -1,8 +1,3 @@
-/*
- * Portions created by SGI are Copyright (C) 2000 Silicon Graphics, Inc.
- * All Rights Reserved.
- */
-
 #if defined(__i386__)
 
 /*
@@ -25,9 +20,6 @@
 setreg:
         movl 4(%esp), %eax
 
-        /*
-         * Save registers.
-         */
         movl %ebx, (JB_BX)(%eax)
         movl %esi, (JB_SI)(%eax)
         movl %edi, (JB_DI)(%eax)
@@ -74,6 +66,46 @@ regjmp:
 
 /****************************************************************/
 
+        /* regsw(regbuf env, int ret) */
+.globl regsw
+        .type regsw, @function
+        .align 16
+regsw:
+		/* get parameter */
+		movl 4(%esp), %eax
+		/* exchange BX */
+		movl (JB_BX)(%eax), %edx
+		movl %ebx, (JB_BX)(%eax)
+		movl %edx, %ebx
+		/* exchange SI */
+		movl (JB_SI)(%eax), %edx
+		movl %esi, (JB_SI)(%eax)
+		movl %edx, %esi
+		/* exchange DI */
+		movl (JB_DI)(%eax), %edx
+		movl %edi, (JB_DI)(%eax)
+		movl %edx, %edi
+		/* exchange BP */
+		movl (JB_BP)(%eax), %edx
+		movl %ebp, (JB_BP)(%eax)
+		movl %edx, %ebp
+		/* PC MUST be obtained before ESP */
+		/* exchange PC */
+		movl (%esp), %ecx
+		movl (JB_PC)(%eax), %edx
+		movl %ecx, (JB_PC)(%eax)
+		movl %edx, %ecx
+		/* exchange SP */
+		leal 4(%esp), %edx
+		movl (JB_SP)(%eax), %esp
+		movl %edx, (JB_SP)(%eax)
+		/* return the second value */
+		movl 8(%esp), %eax
+		jmp *%ecx
+        .size regsw, .-regsw
+
+/****************************************************************/
+
 #elif defined(__amd64__) || defined(__x86_64__)
 
 /*
@@ -96,9 +128,6 @@ regjmp:
         .type setreg, @function
         .align 16
 setreg:
-        /*
-         * Save registers.
-         */
         movq %rbx, (JB_RBX)(%rdi)
         movq %rbp, (JB_RBP)(%rdi)
         movq %r12, (JB_R12)(%rdi)
@@ -145,5 +174,48 @@ regjmp:
 
 /****************************************************************/
 
+        /* regsw(regbuf env, int ret) */
+.globl regsw
+        .type regsw, @function
+        .align 16
+regsw:
+		/* exchange RBX */
+		movq (JB_RBX)(%rdi), %rdx
+		movq %rbx, (JB_RBX)(%rdi)
+		movq %rdx, %rbx
+		/* exchange R12 */
+		movq (JB_R12)(%rdi), %rdx
+		movq %r12, (JB_R12)(%rdi)
+		movq %rdx, %r12
+		/* exchange R13 */
+		movq (JB_R13)(%rdi), %rdx
+		movq %r13, (JB_R13)(%rdi)
+		movq %rdx, %r13
+		/* exchange R14 */
+		movq (JB_R14)(%rdi), %rdx
+		movq %r14, (JB_R14)(%rdi)
+		movq %rdx, %r14
+		/* exchange R15 */
+		movq (JB_R15)(%rdi), %rdx
+		movq %r15, (JB_R15)(%rdi)
+		movq %rdx, %r15
+		/* exchange RBP */
+		movq (JB_RBP)(%rdi), %rdx
+		movq %rbp, (JB_RBP)(%rdi)
+		movq %rdx, %rbp
+		/* PC MUST be obtained before RSP */
+		/* exchange PC */
+		movq (%rsp), %rcx
+		movq (JB_PC)(%rdi), %rdx
+		movq %rcx, (JB_PC)(%rdi)
+		movq %rdx, %rcx
+		/* exchange RSP */
+		leaq 8(%rsp), %rdx
+		movq (JB_RSP)(%rdi), %rsp
+		movq %rdx, (JB_RSP)(%rdi)
+		/* return the second value */
+		movq %rsi, %rax
+		jmpq *%rcx
+        .size regsw, .-regsw
 #endif
 
