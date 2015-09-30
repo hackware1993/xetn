@@ -32,11 +32,10 @@ void run(Coroutine coro) {
 }
 
 static void test_resume_yield_status(void** state) {
-	regbuf_t ctx;
 	Coroutine coro = (Coroutine)*state;
 	assert_true(coroutine_is_init(coro));
 
-	coroutine_init(coro, ctx, &run);
+	coroutine_init(coro, &run);
 	assert_true(coroutine_is_pend(coro));
 
 	coro->res = "hello";
