@@ -17,10 +17,8 @@ MAIN_RUN:
 	coro->main(coro);
 END_AGAIN:
 	coro->state = C_END;
-	switch(setreg(coro->env)) {
-		case 0:
-			regjmp(coro->ctx, 1);
-	/* NOTICE: pc NEVER point to this position */
+	int ret = regsw(coro->env, 0);
+	switch(ret) {
 		case -1:
 			coroutine_yield(coro);
 			goto MAIN_RUN;
@@ -29,8 +27,6 @@ END_AGAIN:
 	/* this situation can be seen as a kind of error */
 			goto END_AGAIN;
 	}
-	coroutine_yield(coro);
-	/* NOTICE: pc NEVER point to this position */
 }
 
 Coroutine coroutine_new() {
@@ -43,13 +39,13 @@ Coroutine coroutine_new() {
 	return coro;
 }
 
-void coroutine_init(Coroutine coro, regbuf_t ctx, coro_cb_t main) {
+void coroutine_init(Coroutine coro, coro_cb_t main) {
 	if(setreg(coro->env)) {
 		__bridge();
 		/* NOTICE: pc NEVER point to this position */
 	}
 	coro->state = C_PEND;
-	coro->ctx = ctx;
+	//coro->ctx = ctx;
 	coro->main = main;
 	coro->sp = coro->env[0];
 	coro->env[0] = coro->top;
