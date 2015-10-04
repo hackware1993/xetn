@@ -266,7 +266,7 @@ uint16_t sockaddr_get_port(SockAddr addr) {
 	return ntohs(port);
 }
 
-handler_t tcp_server_create(const char* url, NetOption oplist) {
+Handler tcp_server_create(Handler sock, const char* url, NetOption oplist) {
 	__addr_t addr;
 	__addr_t* ret = __addr_get(&addr, url);
 	if(ret == NULL) {
@@ -283,12 +283,11 @@ handler_t tcp_server_create(const char* url, NetOption oplist) {
 	error_exit(fd == -1, tcp_server_create::socket);
 	__addr_free(ret);
 
-	handler_t handler;
-	handler.fileno = fd;
-	handler.type = H_SOCK;
+	sock->fileno = fd;
+	sock->type = H_SOCK;
 	int32_t stat;
 	if(oplist != NULL) {
-		stat = sock_option_handle(&handler, oplist);
+		stat = sock_option_handle(sock, oplist);
 		error_exit(stat == -1, tcp_server_create:netoption);
 	}
 
@@ -297,10 +296,10 @@ handler_t tcp_server_create(const char* url, NetOption oplist) {
 	stat = listen(fd, SOMAXCONN);
 	error_exit(stat == -1, tcp_server_create::listen);
 
-	return handler;
+	return sock;
 }
 
-handler_t tcp_client_create(const char* url, NetOption oplist) {
+Handler tcp_client_create(Handler sock, const char* url, NetOption oplist) {
 	__addr_t addr;
 	__addr_t* ret = __addr_get(&addr, url);
 	if(ret == NULL) {
@@ -317,19 +316,37 @@ handler_t tcp_client_create(const char* url, NetOption oplist) {
 	error_exit(fd == -1, tcp_client_create::socket);
 	__addr_free(ret);
 
-	handler_t handler;
-	handler.fileno = fd;
-	handler.type = H_SOCK;
+	sock->fileno = fd;
+	sock->type = H_SOCK;
 	int32_t stat;
 	if(oplist != NULL) {
-		stat = sock_option_handle(&handler, oplist);
+		stat = sock_option_handle(sock, oplist);
 		error_exit(stat == -1, tcp_server_create:netoption);
 	}
 
 	stat = connect(fd, psa, sizeof(sockaddr_t));
 	error_exit(stat == -1, tcp_client_create::connect);
 
-	return handler;
+	return sock;
+}
+
+Handler tcp_server_accept(Handler sock, Handler target, NetOption oplist) {
+	fd_t fd = accept(sock->fileno, NULL, NULL);
+	if(fd == -1) {
+		/* EAGAIN MUST be chcked under nonblocking mode */
+		if(errno == EAGAIN) {
+			return NULL;
+		}
+                              
+		error_exit(1, tcp_server_accept::accept);
+	}
+	target->fileno = fd;
+	target->type = H_SOCK;
+	if(oplist != NULL) {
+		int stat = sock_option_handle(target, oplist);
+		error_exit(stat == -1, tcp_server_accept:netoption);
+	}
+	return target;
 }
 
 Handler sock_create(Handler target) {

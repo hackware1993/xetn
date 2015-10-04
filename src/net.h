@@ -29,8 +29,9 @@ typedef struct sockaddr sockaddr_t;
 
 typedef sockaddr_t* SockAddr;
 
-handler_t tcp_server_create(const char*, NetOption);
-handler_t tcp_client_create(const char*, NetOption);
+Handler tcp_server_create(Handler, const char*, NetOption);
+Handler tcp_server_accept(Handler, Handler, NetOption);
+Handler tcp_client_create(Handler, const char*, NetOption);
 
 Handler sock_create(Handler);
 
