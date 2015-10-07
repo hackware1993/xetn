@@ -8,7 +8,7 @@
 #include <string.h>
 
 static int test_setup(void** state) {
-	Coroutine coro = coroutine_new();
+	Coroutine coro = coroutine_new(1);
 	*state = coro;
 	return 0;
 }
