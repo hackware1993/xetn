@@ -50,7 +50,7 @@ typedef struct coroutine {
 
 typedef coroutine_t* Coroutine;
 
-Coroutine coroutine_new(void);
+Coroutine coroutine_new(size_t);
 
 #define coroutine_free(coro) free((coro))
 

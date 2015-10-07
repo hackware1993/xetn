@@ -29,8 +29,13 @@ END_AGAIN:
 	}
 }
 
-Coroutine coroutine_new() {
-	void* stk = aligned_alloc(PAGE_SIZE, STK_DEFAULT_SIZE);
+Coroutine coroutine_new(size_t size) {
+	if(size <= STK_DEFAULT_SIZE) {
+		size = STK_DEFAULT_SIZE;
+	} else {
+		size = (size + PAGE_SIZE - 1) / PAGE_SIZE * PAGE_SIZE;
+	}
+	void* stk = aligned_alloc(PAGE_SIZE, size);
 	Coroutine coro = (Coroutine)stk;
 	coro->state = C_INIT;
 	coro->stk = stk;
