@@ -20,7 +20,7 @@ END_AGAIN:
 	int ret = regsw(coro->env, 0);
 	switch(ret) {
 		case -1:
-			coroutine_yield(coro);
+			Coroutine_yield(coro);
 			goto MAIN_RUN;
 		default:
 	/* can not resume coroutine whose state is C_END */
@@ -29,7 +29,7 @@ END_AGAIN:
 	}
 }
 
-Coroutine coroutine_new(size_t size) {
+Coroutine Coroutine_new(size_t size) {
 	if(size <= STK_DEFAULT_SIZE) {
 		size = STK_DEFAULT_SIZE;
 	} else {
@@ -44,7 +44,7 @@ Coroutine coroutine_new(size_t size) {
 	return coro;
 }
 
-void coroutine_init(Coroutine coro, coro_cb_t main) {
+void Coroutine_init(Coroutine coro, coro_cb_t main) {
 	if(setreg(coro->env)) {
 		__bridge();
 		/* NOTICE: pc NEVER point to this position */
@@ -59,7 +59,7 @@ void coroutine_init(Coroutine coro, coro_cb_t main) {
 }
 
 /* the following functions is used for DEBUG */
-void coroutine_dump_regs(Coroutine coro) {
+void Coroutine_dumpRegs(Coroutine coro) {
 #if defined(__i386__)
 	printf("[\e[1;32mSP\e[0m] %08X\n", (uint32_t)(coro->env[0]));
 	printf("[\e[1;32mBX\e[0m] %08X\n", (uint32_t)(coro->env[1]));
@@ -89,7 +89,7 @@ void coroutine_dump_regs(Coroutine coro) {
 
 #endif
 
-void coroutine_dump_stack(Coroutine coro) {
+void Coroutine_dumpStack(Coroutine coro) {
 	void* p = coro->top + (-PLEN * PLEN);
 	int i;
 	while(p >= coro->bot) {

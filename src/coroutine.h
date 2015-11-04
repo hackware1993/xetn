@@ -46,15 +46,13 @@ typedef struct coroutine {
 	void* sp;
 	coro_cb_t main;
 	void* res;
-} coroutine_t;
+} coroutine_t, *Coroutine;
 
-typedef coroutine_t* Coroutine;
+Coroutine Coroutine_new(size_t);
 
-Coroutine coroutine_new(size_t);
+#define Coroutine_free(coro) free((coro))
 
-#define coroutine_free(coro) free((coro))
-
-void coroutine_init(Coroutine, coro_cb_t);
+void Coroutine_init(Coroutine, coro_cb_t);
 
 extern int setreg(regbuf_t);
 
@@ -67,7 +65,7 @@ extern int regsw(regbuf_t, int);
 //		(coro)->state = C_PEND;    \
 //		regjmp((coro)->ctx, 1);   \
 //	}
-#define coroutine_yield(coro)  \
+#define Coroutine_yield(coro)  \
 	(coro)->state = C_PEND;    \
 	regsw((coro)->env, 0)
 
@@ -76,7 +74,7 @@ extern int regsw(regbuf_t, int);
 //		(coro)->state = C_RUN;      \
 //		regjmp((coro)->env, 1);     \
 //	}
-#define coroutine_resume(coro)  \
+#define Coroutine_resume(coro)  \
 	(coro)->state = C_RUN;      \
 	regsw((coro)->env, 1)
 
@@ -84,24 +82,24 @@ extern int regsw(regbuf_t, int);
 //	if(setreg((coro)->ctx) == 0) { \
 //		regjmp((coro)->env, -1);   \
 //	}
-#define coroutine_reset(coro) regsw((coro)->env, -1)
+#define Coroutine_reset(coro) regsw((coro)->env, -1)
 
 /* the following macros is used to get or judge the status of coroutine */
-#define coroutine_status(coro) (coro)->state
+#define Coroutine_status(coro) (coro)->state
 
-#define coroutine_is_init(coro) (coro)->state == C_INIT
+#define Coroutine_isInit(coro) (coro)->state == C_INIT
 
-#define coroutine_is_pend(coro) (coro)->state == C_PEND
+#define Coroutine_isPend(coro) (coro)->state == C_PEND
 
-#define coroutine_is_run(coro) (coro)->state == C_RUN
+#define Coroutine_isRun(coro) (coro)->state == C_RUN
 
-#define coroutine_is_end(coro) (coro)->state == C_END
+#define Coroutine_isEnd(coro) (coro)->state == C_END
 
 /* functions for Debug */
 #if defined(DEBUG)
-void coroutine_dump_regs(Coroutine);
+void Coroutine_dumpRegs(Coroutine);
 
-void coroutine_dump_stack(Coroutine);
+void Coroutine_dumpStack(Coroutine);
 #endif // DEBUG
 
 #endif // _COROUTINE_H_
