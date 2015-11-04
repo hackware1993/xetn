@@ -21,17 +21,15 @@ typedef enum netop {
 typedef struct netoption {
 	netop_t type;
 	uint32_t opt;
-} netoption_t;
-
-typedef netoption_t* NetOption;
+} netoption_t, *NetOption;
 
 typedef struct sockaddr sockaddr_t;
 
 typedef sockaddr_t* SockAddr;
 
-Handler tcp_server_create(Handler, const char*, NetOption);
-Handler tcp_server_accept(Handler, Handler, NetOption);
-Handler tcp_client_create(Handler, const char*, NetOption);
+Handler TcpServer_create(Handler, const char*, NetOption);
+Handler TcpServer_accept(Handler, Handler, NetOption);
+Handler TcpClient_create(Handler, const char*, NetOption);
 
 Handler sock_create(Handler);
 

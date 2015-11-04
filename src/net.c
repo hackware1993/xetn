@@ -266,11 +266,11 @@ uint16_t sockaddr_get_port(SockAddr addr) {
 	return ntohs(port);
 }
 
-Handler tcp_server_create(Handler sock, const char* url, NetOption oplist) {
+Handler TcpServer_create(Handler sock, const char* url, NetOption oplist) {
 	__addr_t addr;
 	__addr_t* ret = __addr_get(&addr, url);
 	if(ret == NULL) {
-		fprintf(stderr, "tcp_server_create::url: %s\n", "invalid server url");
+		fprintf(stderr, "TcpServer_create::url: %s\n", "invalid server url");
 		exit(EXIT_FAILURE);
 	}
 
@@ -280,7 +280,7 @@ Handler tcp_server_create(Handler sock, const char* url, NetOption oplist) {
 	int32_t fd = socket(psa->sa_family, 
 			(ret->type == 0) ? SOCK_STREAM : SOCK_DGRAM,
 			(ret->type == 0) ? IPPROTO_TCP : IPPROTO_UDP);
-	error_exit(fd == -1, tcp_server_create::socket);
+	error_exit(fd == -1, TcpServer_create::socket);
 	__addr_free(ret);
 
 	sock->fileno = fd;
@@ -288,22 +288,22 @@ Handler tcp_server_create(Handler sock, const char* url, NetOption oplist) {
 	int32_t stat;
 	if(oplist != NULL) {
 		stat = sock_option_handle(sock, oplist);
-		error_exit(stat == -1, tcp_server_create:netoption);
+		error_exit(stat == -1, TcpServer_create::netoption);
 	}
 
 	stat = bind(fd, psa, sizeof(struct sockaddr));
-	error_exit(stat == -1, tcp_server_create::bind);
+	error_exit(stat == -1, TcpServer_create::bind);
 	stat = listen(fd, SOMAXCONN);
-	error_exit(stat == -1, tcp_server_create::listen);
+	error_exit(stat == -1, TcpServer_create::listen);
 
 	return sock;
 }
 
-Handler tcp_client_create(Handler sock, const char* url, NetOption oplist) {
+Handler TcpClient_create(Handler sock, const char* url, NetOption oplist) {
 	__addr_t addr;
 	__addr_t* ret = __addr_get(&addr, url);
 	if(ret == NULL) {
-		fprintf(stderr, "tcp_client_create::url: %s\n", "invalid server url");
+		fprintf(stderr, "TcpClient_create::url: %s\n", "invalid server url");
 		exit(EXIT_FAILURE);
 	}
 
@@ -321,16 +321,16 @@ Handler tcp_client_create(Handler sock, const char* url, NetOption oplist) {
 	int32_t stat;
 	if(oplist != NULL) {
 		stat = sock_option_handle(sock, oplist);
-		error_exit(stat == -1, tcp_server_create:netoption);
+		error_exit(stat == -1, TcpClient_create:netoption);
 	}
 
 	stat = connect(fd, psa, sizeof(sockaddr_t));
-	error_exit(stat == -1, tcp_client_create::connect);
+	error_exit(stat == -1, TcpClient_create::connect);
 
 	return sock;
 }
 
-Handler tcp_server_accept(Handler sock, Handler target, NetOption oplist) {
+Handler TcpServer_accept(Handler sock, Handler target, NetOption oplist) {
 	fd_t fd = accept(sock->fileno, NULL, NULL);
 	if(fd == -1) {
 		/* EAGAIN MUST be chcked under nonblocking mode */
@@ -338,13 +338,13 @@ Handler tcp_server_accept(Handler sock, Handler target, NetOption oplist) {
 			return NULL;
 		}
                               
-		error_exit(1, tcp_server_accept::accept);
+		error_exit(1, TcpServer_accept::accept);
 	}
 	target->fileno = fd;
 	target->type = H_SOCK;
 	if(oplist != NULL) {
 		int stat = sock_option_handle(target, oplist);
-		error_exit(stat == -1, tcp_server_accept:netoption);
+		error_exit(stat == -1, TcpServer_accept:netoption);
 	}
 	return target;
 }
