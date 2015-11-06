@@ -2,7 +2,7 @@
 
 #include <string.h>
 
-Buffer buffer_new(uint32_t size) {
+Buffer Buffer_new(uint32_t size) {
 	uint32_t size_total = size + sizeof(buffer_t);
 	Buffer res = (Buffer)malloc(size_total);
 	//res->ptr = (char*)(res + 1);
@@ -13,7 +13,7 @@ Buffer buffer_new(uint32_t size) {
 	return res;
 }
 
-uint32_t buffer_put_arr(Buffer buf, char* arr, uint32_t off, size_t len) {
+uint32_t Buffer_putArr(Buffer buf, char* arr, uint32_t off, size_t len) {
 	size_t rest = buf->lim - buf->end;
 	len = (len > rest) ? rest : len;
 
@@ -23,7 +23,7 @@ uint32_t buffer_put_arr(Buffer buf, char* arr, uint32_t off, size_t len) {
 	return res;
 }
 
-uint32_t buffer_get_arr(Buffer buf, char* arr, uint32_t off, size_t len) {
+uint32_t Buffer_getArr(Buffer buf, char* arr, uint32_t off, size_t len) {
 	size_t rest = buf->end - buf->pos;
 	len = (len > rest) ? rest : len;
 
