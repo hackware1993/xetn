@@ -42,19 +42,16 @@ typedef struct thread {
 
 struct task_queue;
 typedef struct thread_pool {
-	uint32_t init_threads;
-	uint32_t max_threads;
-	uint32_t min_threads;
 	uint32_t num_threads;
 
 	Thread threads;
 	struct task_queue* taskq;
 } thread_pool_t, *ThreadPool;
 
-ThreadPool ThreadPool_init(ThreadPool, uint32_t, uint32_t, uint32_t);
+ThreadPool ThreadPool_init(ThreadPool, uint32_t);
 void ThreadPool_close(ThreadPool);
 
-void ThreadPool_start(ThreadPool);
+void ThreadPool_start(ThreadPool, size_t);
 void ThreadPool_wait(ThreadPool);
 void ThreadPool_stop(ThreadPool);
 void ThreadPool_halt(ThreadPool);

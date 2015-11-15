@@ -101,10 +101,7 @@ FINAL:
 	return NULL;
 }
 
-ThreadPool ThreadPool_init(ThreadPool pool, uint32_t init, uint32_t min, uint32_t max) {
-	pool->init_threads = init;
-	pool->min_threads  = min;
-	pool->max_threads  = max;
+ThreadPool ThreadPool_init(ThreadPool pool, uint32_t init) {
 	pool->num_threads = init;
 	pool->threads = malloc(init * sizeof(thread_t));
 	pool->taskq = malloc(init * sizeof(task_queue_t));
@@ -124,8 +121,11 @@ void ThreadPool_close(ThreadPool pool) {
 	free(pool->threads);
 }
 
-void ThreadPool_start(ThreadPool pool) {
+void ThreadPool_start(ThreadPool pool, size_t stk) {
 	uint32_t i;
+	pthread_attr_t attr;
+	pthread_attr_init(&attr);
+	pthread_attr_setstacksize(&attr, stk * 1024);
 	for(i = 0; i < pool->num_threads; ++i) {
 		// TODO add error check
 		// NOTICE don't use global errno
@@ -134,9 +134,10 @@ void ThreadPool_start(ThreadPool pool) {
 		pthr->pool = pool;
 		pthread_cond_init(&pthr->cond, NULL);
 		pthr->signal = TS_INIT;
-		pthread_create(&pthr->tid, NULL, &thread_handle, pthr);
+		pthread_create(&pthr->tid, &attr, &thread_handle, pthr);
 		// TODO consider if we should setup attr of pthread
 	}
+	pthread_attr_destroy(&attr);
 }
 
 /* stop all threads, and pushback all internal tasks */
@@ -165,10 +166,9 @@ void ThreadPool_wait(ThreadPool pool) {
 void ThreadPool_halt(ThreadPool pool) {
 	uint32_t i;
 	for(i = 0; i < pool->num_threads; ++i) {
-		pthread_cancel(pool->threads[i].tid);
-	}
-	for(i = 0; i < pool->num_threads; ++i) {
-		pthread_join(pool->threads[i].tid, NULL);
+		pthread_t tid = pool->threads[i].tid;
+		pthread_detach(tid);
+		pthread_cancel(tid);
 	}
 }
 
