@@ -13,64 +13,61 @@ typedef enum wtype {
 
 /* only E_TIME can be set with others */
 typedef enum event {
-	E_NONE = 0x00,
-	E_TIME = 0x01,
-	E_READ = 0x02,
-	E_WRITE = 0x04,
-	E_ERROR = 0x08
+	EV_NONE = 0x00,
+	EV_TIME = 0x01,
+	EV_READ = 0x02,
+	EV_WRITE = 0x04,
+	EV_ERROR = 0x08
 } event_t;
 
-typedef struct fdlist {
-	fd_t fd;
-	struct fdlist* next;
-} *fdlist_t;
+struct reactor;
+struct fdlist;
+struct watcher;
+
+/* developers should process every event inside processor */
+typedef void (*watcher_cb)(struct watcher*);
 
 typedef struct watcher {
-	struct handler handler;
-	wtype_t  type;
-	event_t  event;
-	reactor_t host;
+	handler_t handler;
+	wtype_t   type;
+	event_t   event;
+	struct reactor* host;
 	// timer_t timer;
-	// TODO add callback for event
-} *watcher_t;
+	watcher_cb processor;
+} watcher_t, *Watcher;
 
-/* prepare for the latter timeout machanism */
-//typedef struct timer {
-//
-//} *timer_t;
-//
 typedef struct reactor {
-	struct handler  poll;
+	handler_t  poll;
 	/* watcher array */
-	watcher_t* ws;
+	Watcher* ws;
 	/* length of watcher array */
 	uint32_t  wl;
-	fdlist_t  io_list;
-	fdlist_t  er_list;
-} *reactor_t;
+	struct fdlist*  io_list;
+	struct fdlist*  er_list;
+} reactor_t, *Reactor;
 
-#define watcher_create(w, t, h, e) \
-	(w)->type = (t);               \
-	(w)->handler = *(h);           \
+#define Watcher_init(w, t, h, e) \
+	(w)->type = (t);             \
+	(w)->handler = *(h);         \
 	(w)->event = (e)
 
-#define watcher_get_event(w) (w)->event
+#define Watcher_getEvent(w) (w)->event
 
-#define watcher_get_type(w) (w)->type
+#define Watcher_getType(w)  (w)->type
 
-#define watcher_has_host(w) (w)->host == NULL
+#define Watcher_getHost(w)  (w)->host
 
-void watcher_mod_event(watcher_t, event_t);
+#define Watcher_hasHost(w)  (w)->host == NULL
 
-void reactor_create(reactor_t);
+void Watcher_modEvent(Watcher, event_t);
 
-void reactor_close(reactor_t);
+Reactor Reactor_init(Reactor);
+void Reactor_close(Reactor);
 
-void reactor_register(reactor_t, watcher_t);
+void Reactor_register(Reactor, Watcher);
+void Reactor_unregister(Reactor, Watcher);
 
-void reactor_unregister(reactor_t, watcher_t);
-
-void reactor_loop_once(reactor_t, int32_t);
+void Reactor_loopOnce(Reactor, int32_t);
 
 
 

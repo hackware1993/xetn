@@ -1,5 +1,6 @@
 #include "reactor.h"
 
+#include <stdio.h>
 #include <stdlib.h>
 #include <sys/epoll.h>
 
@@ -15,44 +16,46 @@ typedef enum pollopt {
 	P_DEL
 } pollopt_t;
 
+typedef struct fdlist {
+	fd_t fd;
+	struct fdlist* next;
+} fdlist_t, *FdList;
+
 /* operation functions for struct fdlist */
-PRIVATE void __fdlist_put(fdlist_t* li, fd_t fd) {
+PRIVATE void __fdlist_put(FdList* li, fd_t fd) {
+	FdList new = (FdList)malloc(sizeof(fdlist_t));
+	new->fd = fd;
 	if(*li != NULL) {
-		fdlist_t new = (fdlist_t)malloc(sizeof(struct fdlist));
-		new->fd = fd;
-		/* switch to new tail */
 		new->next = (*li)->next;
 		(*li)->next = new;
-		(*li) = new;
-		return;
+	} else {
+		new->next = new;
 	}
-	*li = (fdlist_t)malloc(sizeof(struct fdlist));
-	(*li)->fd = fd;
-	(*li)->next = *li;
+	*li = new;
 }
 
-PRIVATE fd_t __fdlist_get(fdlist_t* li) {
-	fdlist_t p = (*li)->next;
-	fd_t res;
+PRIVATE fd_t __fdlist_get(FdList* li) {
+	if(*li == NULL) {
+		return -1;
+	}
+	FdList p = (*li)->next;
+	fd_t res = p->fd;
 	if(p != *li) {
 		(*li)->next = p->next;
-		res = p->fd;
-		free(p);
-		return res;
+	} else {
+		*li = NULL;
 	}
-	res = p->fd;
 	free(p);
-	*li = NULL;
 	return res;
 }
 
-PRIVATE void __fdlist_free(fd_list li) {
+PRIVATE void __fdlist_free(FdList li) {
 	/* skip empty list */
 	if(li == NULL) {
 		return;
 	}
-	fdlist_t temp = NULL;
-	fdlist_t p = li;
+	FdList temp = NULL;
+	FdList p = li;
 	do {
 		temp = p;
 		p = p->next;
@@ -61,72 +64,69 @@ PRIVATE void __fdlist_free(fd_list li) {
 }
 
 /* operation functions for internal poll handler */
-PRIVATE void __poll_create(handler_t poll) {
+PRIVATE void __poll_create(Handler poll) {
 	int epfd = epoll_create1(0);
 	if(epfd == -1) {
 		perror("poll_create");
-		exit(-1);
+		exit(EXIT_FAILURE);
 	}
-	*poll = handler_create(epfd, H_POLL);
+	Handler_init(poll, epfd, H_POLL);
 }
 
-PRIVATE void __poll_ctl(handler_t poll, pollopt_t opt, handler_t handler) {
-	watcher_t wt = (watcher_t)handler;
-	int op;
+PRIVATE void __poll_ctl(Handler poll, pollopt_t opt, Handler handler) {
+	Watcher wt = (Watcher)handler;
+	int32_t stat, op;
+	uint32_t events = EPOLLET;
+	struct epoll_event* pev = NULL;
+	fd_t fd = handler->fileno;
 	switch(opt) {
 		case P_ADD:
 			op = EPOLL_CTL_ADD;
-			goto process_add;
+			goto OP_MOD;
 		case P_MOD:
 			op = EPOLL_CTL_MOD;
-			goto process_mod;
+			goto OP_MOD;
 		case P_DEL:
 			op = EPOLL_CTL_DEL;
-			goto process_del;
+			goto OP_DEL;
 		default:
+			// TODO: add exception here
 			return;
 	}
-process_add:
-process_mod:
-	unsigned events = EPOLLET;
+OP_MOD:
 	switch(wt->event) {
-		case E_READ:
+		case EV_READ:
 			events |= EPOLLIN;
 			break;
-		case E_WRITE:
+		case EV_WRITE:
 			events |= EPOLLOUT;
 			break;
 		default:
+			// TODO: add exception here
 			return;
 	}
-	int fd = handler->fileno;
 	struct epoll_event ev;
 	ev.events = events;
 	ev.data.fd = fd;
-	int s = epoll_ctl(poll->fileno, op, fd, &ev);
-	if(s == -1) {
+	pev = &ev;
+OP_DEL:
+	stat = epoll_ctl(poll->fileno, op, fd, pev);
+	if(stat == -1) {
 		perror("poll_ctl");
 		exit(-1);
 	}
 	return;
-process_del:
-	int s = epoll_ctl(poll->fileno, op, fd, NULL);
-	if(s == -1) {
-		perror("poll_ctl::dell");
-		exit(-1);
-	}
-	return;
 }
 
-PRIVATE void __poll_wait(handler_t poll, int32_t to, fdlist_t* ios, fdlist_t* errs) {
+PRIVATE void __poll_wait(Handler poll, int32_t to, FdList* ios, FdList* errs) {
 	struct epoll_event events[MAXEVENT];
-	int count = epoll_wait(poll->fileno, events, MAXEVENT, to);
-	if(s == -1) {
+	int32_t count = epoll_wait(poll->fileno, events, MAXEVENT, to);
+	if(count == -1) {
 		perror("poll_wait");
 		exit(-1);
 	}
 	struct epoll_event* pc;
-	int i;
+	uint32_t i;
 	for(i = 0; i < MAXEVENT; ++i) {
 		pc = events + i;
 		if(pc->events & (EPOLLERR | EPOLLHUP)) {
@@ -138,8 +138,8 @@ PRIVATE void __poll_wait(handler_t poll, int32_t to, fdlist_t* ios, fdlist_t* er
 	// TODO check here
 }
 
-PRIVATE void __auto_append(reactor_t re, int fd) {
-	unsigned len = re->wl;
+PRIVATE void __auto_append(Reactor re, fd_t fd) {
+	uint32_t len = re->wl;
 	while(len <= fd) {
 		len *= 2;
 	}
@@ -147,56 +147,71 @@ PRIVATE void __auto_append(reactor_t re, int fd) {
 	len = (len > WATCHER_MAX) ? WATCHER_MAX : len;
 
 	re->wl = len;
-	re->ws = (watcher_t*)realloc(re->ws, len * sizeof(watcher_t));
+	re->ws = (Watcher*)realloc(re->ws, len * sizeof(Watcher));
 }
 
 /* public function for reactor & watcher */
-void reactor_create(reactor_t re) {
+Reactor Reactor_init(Reactor re) {
 	re->wl = WATCHER_INIT;
-	re->ws = (watcher_t*)calloc(WATCHER_INIT, sizeof(watcher_t));
+	re->ws = (Watcher*)calloc(WATCHER_INIT, sizeof(Watcher));
+	re->io_list = NULL;
+	re->er_list = NULL;
 	/* create internal poll handler */
 	__poll_create(&re->poll);
+	return re;
 }
 
-void reactor_close(reactor_t re) {
+void Reactor_close(Reactor re) {
 	/* destroy internal fd list */
 	__fdlist_free(re->io_list);
 	__fdlist_free(re->er_list);
-	re->io_list = NULL;
-	re->er_list = NULL;
 	/* destroy watcher list*/
-	free(re->watchers);
+	free(re->ws);
 	/* close internal poll */
-	handler_close(&re->poll);
+	Handler_close(&re->poll);
 	/* reactor won't free re itself */
 }
 
-void reactor_register(reactor_t re, watcher_t wt) {
+void Reactor_register(Reactor re, Watcher wt) {
 	int fd = wt->handler.fileno;
-	re->listeners[fd] = wt;
+	re->ws[fd] = wt;
 	wt->host = re;
-	__poll_ctl(&re->poll, P_ADD, (handler_t)wt);
+	__poll_ctl(&re->poll, P_ADD, (Handler)wt);
 	//TODO change the event of poll
 }
 
-void reactor_unregister(reactor_t re, watcher_t wt) {
+void Reactor_unregister(Reactor re, Watcher wt) {
 	int fd = wt->handler.fileno;
-	re->listeners[fd] = NULL;
-	wt->host = NULL:
-	__poll_ctl(&re->poll, P_DEL, (handler_t)wt);
+	re->ws[fd] = NULL;
+	wt->host = NULL;
+	__poll_ctl(&re->poll, P_DEL, (Handler)wt);
 	//TODO change the event of poll
 }
 
-void reactor_loop_once(reactor_t re, int32_t to) {
+void Reactor_loopOnce(Reactor re, int32_t to) {
 	__poll_wait(&re->poll, to, &re->io_list, &re->er_list);
+	fd_t fd;
+	Watcher wt;
+	/* error watcher has the highest priority */
+	while((fd = __fdlist_get(&re->er_list)) != -1) {
+		wt = re->ws[fd];
+		wt->event = EV_ERROR;
+		wt->processor(wt);
+	}
+
+	while((fd = __fdlist_get(&re->io_list)) != -1) {
+		wt = re->ws[fd];
+		wt->processor(wt);
+	}
 	// TODO process io_list & er_list
 }
 
-void watcher_mod_event(watcher_t wt, event_t ev) {
-	if(watcher_get_event == ev) {
+void Watcher_modEvent(Watcher wt, event_t ev) {
+	if(Watcher_getEvent(wt) == ev) {
 		return;
 	}
-	handler_t poll = &wt->host->poll;
-	__poll_ctl(poll, P_MOD, &wt->handler);
+	handler_t poll = wt->host->poll;
+	wt->event = ev;
+	__poll_ctl(&poll, P_MOD, &wt->handler);
 }
 
