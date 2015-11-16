@@ -95,12 +95,15 @@ regsw:
 		movl (JB_PC)(%eax), %edx
 		movl %ecx, (JB_PC)(%eax)
 		movl %edx, %ecx
+		/* save the second value */
+		movl 8(%esp), %edx
+		pushl %edx
 		/* exchange SP */
-		leal 4(%esp), %edx
+		leal 8(%esp), %edx
 		movl (JB_SP)(%eax), %esp
 		movl %edx, (JB_SP)(%eax)
 		/* return the second value */
-		movl 8(%esp), %eax
+		movl -8(%edx), %eax
 		jmp *%ecx
         .size regsw, .-regsw
 
