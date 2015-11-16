@@ -15,11 +15,12 @@ typedef enum htype {
 typedef struct handler {
 	fd_t    fileno;
 	htype_t type;
-} handler_t;
+} handler_t, *Handler;
 
-typedef handler_t* Handler;
+#define Handler_init(h, f, t) \
+	(h)->fileno = (f); \
+	(h)->type = (t)
 
-#define handler_create(f, t)  {(f), (t)}
-#define handler_close(h) close((h)->fileno)
+#define Handler_close(h) close((h)->fileno)
 
 #endif // _HANDLER_H_
