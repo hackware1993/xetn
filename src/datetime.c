@@ -1,18 +1,22 @@
-#include "time.h"
+#include "datetime.h"
 #include <stdlib.h>
 #include <string.h>
 
-static time_t TIME_DIFF;
+#define FORMAT_NTZ "%a, %d %b %Y %H:%M:%S"
+#define FORMAT_GMT "%a, %d %b %Y %H:%M:%S GMT"
+#define FORMAT_LOC "%a, %d %b %Y %H:%M:%S LOC"
 
-void time_module_init() {
+#define PRIVATE static
+
+PRIVATE inline time_t TIME_DIFF() {
 	time_t local = time(NULL);
 	struct tm tmGM;
 	gmtime_r(&local, &tmGM);
 	time_t utc = mktime(&tmGM);
-	TIME_DIFF = utc - local;
+	return utc - local;
 }
 
-time_t time_parse_from(const char* tstr) {
+time_t DateTime_parseFrom(const char* tstr) {
 	struct tm time;
 	char temp[26];
 	temp[25] = '\0';
@@ -20,36 +24,36 @@ time_t time_parse_from(const char* tstr) {
 	strptime(temp, FORMAT_NTZ, &time);
 	time_t origin = mktime(&time);
 	if(strcmp(tstr + 26, "GMT") == 0) {
-		origin -= TIME_DIFF;
+		origin -= TIME_DIFF();
 	}
 	return origin;
 }
 
-void time_format_gmt(time_t* time, char* res) {
+void DateTime_formatGmt(time_t* time, char* res) {
 	struct tm gmtime;
 	gmtime_r(time, &gmtime);
 	strftime(res, 30, FORMAT_GMT, &gmtime);
 }
 
-void time_format_loc(time_t* time, char* res) {
+void DateTime_formatLoc(time_t* time, char* res) {
 	struct tm loctime;
 	localtime_r(time, &loctime);
 	strftime(res, 30, FORMAT_LOC, &loctime);
 }
 
-int time_get_day(time_t* time) {
+int DateTime_getDay(time_t* time) {
 	struct tm loc;
 	localtime_r(time, &loc);
 	return loc.tm_mday;
 }
 
-int time_get_month(time_t* time) {
+int DateTime_getMonth(time_t* time) {
 	struct tm loc;
 	localtime_r(time, &loc);
 	return loc.tm_mon + 1;
 }
 
-int time_get_year(time_t* time) {
+int DateTime_getYear(time_t* time) {
 	struct tm loc;
 	localtime_r(time, &loc);
 	return loc.tm_year + 1900;
