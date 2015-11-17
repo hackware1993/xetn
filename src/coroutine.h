@@ -50,9 +50,9 @@ typedef struct coroutine {
 
 Coroutine Coroutine_new(size_t);
 
-#define Coroutine_free(coro) free((coro))
+#define Coroutine_close(coro) free((coro))
 
-void Coroutine_init(Coroutine, coro_cb_t);
+void Coroutine_bind(Coroutine, coro_cb_t);
 
 extern int setreg(regbuf_t);
 

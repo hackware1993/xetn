@@ -13,7 +13,7 @@ static int test_setup(void** state) {
 	return 0;
 }
 static int test_teardown(void** state) {
-	Coroutine_free(*state);
+	Coroutine_close(*state);
 	return 0;
 }
 
@@ -35,7 +35,7 @@ static void test_resume_yield_status(void** state) {
 	Coroutine coro = (Coroutine)*state;
 	assert_true(Coroutine_isInit(coro));
 
-	Coroutine_init(coro, &run);
+	Coroutine_bind(coro, &run);
 	assert_true(Coroutine_isPend(coro));
 
 	coro->res = "hello";
