@@ -93,7 +93,9 @@ extern int  regsw(regbuf_t, int);
 //	if(setreg((coro)->ctx) == 0) { \
 //		regjmp((coro)->env, -1);   \
 //	}
-#define Coroutine_reset(coro) regsw((coro)->env, -1)
+#define Coroutine_reset(coro)      \
+	assert(Coroutine_isEnd(coro)); \
+	regsw((coro)->env, -1)
 
 /* functions for Debug */
 #if defined(DEBUG)
