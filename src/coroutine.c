@@ -44,7 +44,7 @@ Coroutine Coroutine_new(size_t size) {
 	return coro;
 }
 
-void Coroutine_init(Coroutine coro, coro_cb_t main) {
+void Coroutine_bind(Coroutine coro, coro_cb_t main) {
 	if(setreg(coro->env)) {
 		__bridge();
 		/* NOTICE: pc NEVER point to this position */
@@ -59,53 +59,42 @@ void Coroutine_init(Coroutine coro, coro_cb_t main) {
 }
 
 /* the following functions is used for DEBUG */
+/* formation is only ready for UNIX-like platform */
 void Coroutine_dumpRegs(Coroutine coro) {
 #if defined(__i386__)
-	printf("[\e[1;32mSP\e[0m] %08X\n", (uint32_t)(coro->env[0]));
-	printf("[\e[1;32mBX\e[0m] %08X\n", (uint32_t)(coro->env[1]));
-	printf("[\e[1;32mSI\e[0m] %08X\n", (uint32_t)(coro->env[2]));
-	printf("[\e[1;32mDI\e[0m] %08X\n", (uint32_t)(coro->env[3]));
-	printf("[\e[1;32mBP\e[0m] %08X\n", (uint32_t)(coro->env[4]));
-	printf("[\e[1;32mPC\e[0m] %08X\n", (uint32_t)(coro->env[5]));
+	fprintf(stderr, "[\e[1;32mSP\e[0m] %p\n", coro->env[0]);
+	fprintf(stderr, "[\e[1;32mBX\e[0m] %p\n", coro->env[1]);
+	fprintf(stderr, "[\e[1;32mSI\e[0m] %p\n", coro->env[2]);
+	fprintf(stderr, "[\e[1;32mDI\e[0m] %p\n", coro->env[3]);
+	fprintf(stderr, "[\e[1;32mBP\e[0m] %p\n", coro->env[4]);
+	fprintf(stderr, "[\e[1;32mPC\e[0m] %p\n", coro->env[5]);
 #elif defined(__amd64__) || defined(__x86_64__)
-	printf("[\e[1;32mRSP\e[0m] %016lX\n", (uint64_t)(coro->env[0]));
-	printf("[\e[1;32mRBX\e[0m] %016lX\n", (uint64_t)(coro->env[1]));
-	printf("[\e[1;32mRBP\e[0m] %016lX\n", (uint64_t)(coro->env[2]));
-	printf("[\e[1;32mR12\e[0m] %016lX\n", (uint64_t)(coro->env[3]));
-	printf("[\e[1;32mR13\e[0m] %016lX\n", (uint64_t)(coro->env[4]));
-	printf("[\e[1;32mR14\e[0m] %016lX\n", (uint64_t)(coro->env[5]));
-	printf("[\e[1;32mR15\e[0m] %016lX\n", (uint64_t)(coro->env[6]));
-	printf("[\e[1;32mRPC\e[0m] %016lX\n", (uint64_t)(coro->env[7]));
+	fprintf(stderr, "[\e[1;32mRSP\e[0m] %p\n", coro->env[0]);
+	fprintf(stderr, "[\e[1;32mRBX\e[0m] %p\n", coro->env[1]);
+	fprintf(stderr, "[\e[1;32mRBP\e[0m] %p\n", coro->env[2]);
+	fprintf(stderr, "[\e[1;32mR12\e[0m] %p\n", coro->env[3]);
+	fprintf(stderr, "[\e[1;32mR13\e[0m] %p\n", coro->env[4]);
+	fprintf(stderr, "[\e[1;32mR14\e[0m] %p\n", coro->env[5]);
+	fprintf(stderr, "[\e[1;32mR15\e[0m] %p\n", coro->env[6]);
+	fprintf(stderr, "[\e[1;32mRPC\e[0m] %p\n", coro->env[7]);
 #endif
 }
 
-#if defined(__i386__)
-
-#define PLEN 4
-
-#elif defined(__amd64__) || defined(__x86_64__)
-
-#define PLEN 8
-
-#endif
+#define STRIDE 32
 
 void Coroutine_dumpStack(Coroutine coro) {
-	void* p = coro->top + (-PLEN * PLEN);
+	void* p = coro->top + -STRIDE;
 	int i;
 	while(p >= coro->bot) {
-	#if defined(__i386__)
-		printf("[\e[1;32m%08X\e[0m]", (uint32_t)p);
-	#elif defined(__amd64__) || defined(__x86_64__)
-		printf("[\e[1;32m%016lX\e[0m]", (uint64_t)p);
-	#endif
-		for(i = 0; i < PLEN; ++i) {
-		#if defined(__i386__)
-			printf(" %08X", *((uint32_t*)p + i));
-		#elif defined(__amd64__) || defined(__x86_64__)
-			printf(" %016lX", *((uint64_t*)p + i));
-		#endif
+		fprintf(stderr, "[\e[1;32m%p\e[0m]", p);
+		for(i = 1; i <= STRIDE; ++i) {
+			if(i % 4 == 1) {
+				fprintf(stderr, " %02hhX", *((unsigned char*)p + i));
+			} else {
+				fprintf(stderr, "%02hhX", *((unsigned char*)p + i));
+			}
 		}
-		printf("\n");
-		p += -PLEN * PLEN;
+		fprintf(stderr, "\n");
+		p += -STRIDE;
 	}
 }
