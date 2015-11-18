@@ -9,14 +9,14 @@ PRIVATE void __bridge() {
 	/* get the pointer to the keys */
 	void* zone;
 	zone = (void*)(((long)&zone + PAGE_SIZE - 1) / PAGE_SIZE * PAGE_SIZE);
-	zone += -sizeof(void*) * 12;
+	zone -= sizeof(void*) * 12;
 	void** keys = (void**)zone;
 	Coroutine coro = (Coroutine)keys[0];
 
 MAIN_RUN:
 	coro->main(coro);
 END_AGAIN:
-	coro->state = C_END;
+	coro->state = CORO_END;
 	int ret = regsw(coro->env, 0);
 	switch(ret) {
 		case -1:
@@ -37,7 +37,7 @@ Coroutine Coroutine_new(size_t size) {
 	}
 	void* stk = aligned_alloc(PAGE_SIZE, size);
 	Coroutine coro = (Coroutine)stk;
-	coro->state = C_INIT;
+	coro->state = CORO_INIT;
 	coro->stk = stk;
 	coro->bot = stk + GREEN_ZONE;
 	coro->top = stk + (STK_DEFAULT_SIZE - RED_ZONE);
@@ -45,11 +45,15 @@ Coroutine Coroutine_new(size_t size) {
 }
 
 void Coroutine_bind(Coroutine coro, coro_cb_t main) {
+	if(Coroutine_isInit(coro) == 0) {
+		coro->main = main;
+		return;
+	}
 	if(setreg(coro->env)) {
 		__bridge();
 		/* NOTICE: pc NEVER point to this position */
 	}
-	coro->state = C_PEND;
+	coro->state = CORO_PEND;
 	//coro->ctx = ctx;
 	coro->main = main;
 	coro->sp = coro->env[0];
@@ -83,7 +87,7 @@ void Coroutine_dumpRegs(Coroutine coro) {
 #define STRIDE 32
 
 void Coroutine_dumpStack(Coroutine coro) {
-	void* p = coro->top + -STRIDE;
+	void* p = coro->top - STRIDE;
 	int i;
 	while(p >= coro->bot) {
 		fprintf(stderr, "[\e[1;32m%p\e[0m]", p);
@@ -95,6 +99,6 @@ void Coroutine_dumpStack(Coroutine coro) {
 			}
 		}
 		fprintf(stderr, "\n");
-		p += -STRIDE;
+		p -= STRIDE;
 	}
 }

@@ -5,6 +5,7 @@
 #ifndef _COROUTINE_H_
 #define _COROUTINE_H_
 
+#include <assert.h>
 #include <stdlib.h>
 #include <stddef.h>
 
@@ -28,10 +29,10 @@ struct coroutine;
 typedef void (*coro_cb_t)(struct coroutine*);
 
 typedef enum cstat {
-	C_INIT,
-	C_PEND,
-	C_RUN,
-	C_END
+	CORO_INIT,
+	CORO_PEND,
+	CORO_RUN,
+	CORO_END
 } cstat_t;
 
 typedef void* regbuf_t[RLEN];
@@ -48,17 +49,27 @@ typedef struct coroutine {
 	void* res;
 } coroutine_t, *Coroutine;
 
+/* get or judge the status of coroutine */
+#define Coroutine_status(coro) (coro)->state
+#define Coroutine_isInit(coro) (coro)->state == CORO_INIT
+#define Coroutine_isPend(coro) (coro)->state == CORO_PEND
+#define Coroutine_isRun(coro) (coro)->state == CORO_RUN
+#define Coroutine_isEnd(coro) (coro)->state == CORO_END
+
 Coroutine Coroutine_new(size_t);
 
-#define Coroutine_close(coro) free((coro))
+/* coroutine cannot be closed when it is running */
+#define Coroutine_close(coro) \
+	assert(Coroutine_status(coro) != CORO_RUN); \
+	free((coro))
 
+/* bind the main function for coroutine */
 void Coroutine_bind(Coroutine, coro_cb_t);
 
-extern int setreg(regbuf_t);
-
+/* internal function of coroutine, do not use them */
+extern int  setreg(regbuf_t);
 extern void regjmp(regbuf_t, int);
-
-extern int regsw(regbuf_t, int);
+extern int  regsw(regbuf_t, int);
 
 //#define coroutine_yield(coro)    \
 //	if(setreg((coro)->env) == 0) { \
@@ -66,7 +77,7 @@ extern int regsw(regbuf_t, int);
 //		regjmp((coro)->ctx, 1);   \
 //	}
 #define Coroutine_yield(coro)  \
-	(coro)->state = C_PEND;    \
+	(coro)->state = CORO_PEND;    \
 	regsw((coro)->env, 0)
 
 //#define coroutine_resume(coro)    \
@@ -75,7 +86,7 @@ extern int regsw(regbuf_t, int);
 //		regjmp((coro)->env, 1);     \
 //	}
 #define Coroutine_resume(coro)  \
-	(coro)->state = C_RUN;      \
+	(coro)->state = CORO_RUN;      \
 	regsw((coro)->env, 1)
 
 //#define coroutine_reset(coro)    \
@@ -83,17 +94,6 @@ extern int regsw(regbuf_t, int);
 //		regjmp((coro)->env, -1);   \
 //	}
 #define Coroutine_reset(coro) regsw((coro)->env, -1)
-
-/* the following macros is used to get or judge the status of coroutine */
-#define Coroutine_status(coro) (coro)->state
-
-#define Coroutine_isInit(coro) (coro)->state == C_INIT
-
-#define Coroutine_isPend(coro) (coro)->state == C_PEND
-
-#define Coroutine_isRun(coro) (coro)->state == C_RUN
-
-#define Coroutine_isEnd(coro) (coro)->state == C_END
 
 /* functions for Debug */
 #if defined(DEBUG)
