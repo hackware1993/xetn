@@ -13,7 +13,7 @@ static int test_setup(void** state) {
 	return 0;
 }
 static int test_teardown(void** state) {
-	Coroutine_close(*state);
+	Coroutine_close((Coroutine)*state);
 	return 0;
 }
 
