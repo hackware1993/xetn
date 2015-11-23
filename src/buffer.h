@@ -34,11 +34,11 @@ Buffer Buffer_new(uint32_t);
 
 #define Buffer_setLim(buf, l) (buf)->lim = (l)
 
-#define Buffer_isEmpty(buf) (buf)->end == 0
+#define Buffer_isEmpty(buf) ((buf)->end == 0)
 
-#define Buffer_isEnd(buf) (buf)->pos == (buf)->end
+#define Buffer_isEnd(buf) ((buf)->pos == (buf)->end)
 
-#define Buffer_isFull(buf) (buf)->end == (buf)->lim
+#define Buffer_isFull(buf) ((buf)->end == (buf)->lim)
 
 #define Buffer_clear(buf) \
 	(buf)->pos = 0;       \
