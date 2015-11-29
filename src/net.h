@@ -31,36 +31,30 @@ Handler TcpServer_create(Handler, const char*, NetOption);
 Handler TcpServer_accept(Handler, Handler, NetOption);
 Handler TcpClient_create(Handler, const char*, NetOption);
 
-Handler sock_create(Handler);
+Handler Socket_create(Handler);
+Handler Socket_accept(Handler, Handler);
 
-Handler sock_accept(Handler, Handler);
+void    Socket_listen(Handler, SockAddr);
+void    Socket_connect(Handler, SockAddr);
+void    Socket_getAddr(Handler, SockAddr);
+int32_t Socket_getErrno(Handler);
 
-void sock_listen(Handler, SockAddr);
+uint32_t SocketOption_getNonBlock(Handler);
+uint32_t SocketOption_getNoDelay(Handler);
+uint32_t SocketOption_getKeepAlive(Handler);
+uint32_t SocketOption_getReuseAddr(Handler);
+uint32_t SocketOption_getSendBuf(Handler);
+uint32_t SocketOption_getRecvBuf(Handler);
 
-void sock_connect(Handler, SockAddr);
+int32_t SocketOption_setNonBlock(Handler, uint32_t);
+int32_t SocketOption_setNoDelay(Handler, uint32_t);
+int32_t SocketOption_setKeepAlive(Handler, uint32_t);
+int32_t SocketOption_setReuseAddr(Handler, uint32_t);
+int32_t SocketOption_setSendBuf(Handler, uint32_t);
+int32_t SocketOption_setRecvBuf(Handler, uint32_t);
 
-void sock_get_addr(Handler, SockAddr);
-
-int32_t sock_get_errno(Handler);
-
-uint32_t sock_get_nonblock(Handler);
-uint32_t sock_get_nodelay(Handler);
-uint32_t sock_get_keepalive(Handler);
-uint32_t sock_get_reuseaddr(Handler);
-uint32_t sock_get_sendbuf(Handler);
-uint32_t sock_get_recvbuf(Handler);
-
-int32_t sock_set_nonblock(Handler, uint32_t);
-int32_t sock_set_nodelay(Handler, uint32_t);
-int32_t sock_set_keepalive(Handler, uint32_t);
-int32_t sock_set_reuseaddr(Handler, uint32_t);
-int32_t sock_set_sendbuf(Handler, uint32_t);
-int32_t sock_set_recvbuf(Handler, uint32_t);
-
-SockAddr sockaddr_get(SockAddr, const char*);
-
-const char* sockaddr_get_addr(SockAddr);
-
-uint16_t sockaddr_get_port(SockAddr);
+SockAddr    SockAddr_get(SockAddr, const char*);
+const char* SockAddr_getAddr(SockAddr);
+uint16_t    SockAddr_getPort(SockAddr);
 
 #endif // _NET_H_
