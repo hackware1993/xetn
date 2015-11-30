@@ -13,6 +13,7 @@ typedef enum netop {
 	NET_KEEPALIVE,
 	NET_NODELAY,
 	NET_REUSEADDR,
+	NET_REUSEPORT,
 	NET_SENDBUF,
 	NET_RECVBUF,
 	NET_NULL,
@@ -43,6 +44,7 @@ uint32_t SocketOption_getNonBlock(Handler);
 uint32_t SocketOption_getNoDelay(Handler);
 uint32_t SocketOption_getKeepAlive(Handler);
 uint32_t SocketOption_getReuseAddr(Handler);
+uint32_t SocketOption_getReusePort(Handler);
 uint32_t SocketOption_getSendBuf(Handler);
 uint32_t SocketOption_getRecvBuf(Handler);
 
@@ -50,6 +52,7 @@ int32_t SocketOption_setNonBlock(Handler, uint32_t);
 int32_t SocketOption_setNoDelay(Handler, uint32_t);
 int32_t SocketOption_setKeepAlive(Handler, uint32_t);
 int32_t SocketOption_setReuseAddr(Handler, uint32_t);
+int32_t SocketOption_setReusePort(Handler, uint32_t);
 int32_t SocketOption_setSendBuf(Handler, uint32_t);
 int32_t SocketOption_setRecvBuf(Handler, uint32_t);
 

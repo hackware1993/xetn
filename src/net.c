@@ -18,7 +18,7 @@
 uint32_t SocketOption_getNonBlock(Handler sock) {
 	fd_t fd = sock->fileno;
 	int flags = fcntl(fd, F_GETFL, 0);
-	error_exit(flags < 0,  sock_get_nonblock);
+	error_exit(flags < 0,  SocketOption_getNonBlock);
 	return flags & O_NONBLOCK;
 }
 
@@ -28,7 +28,7 @@ uint32_t SockOption_getNoDelay(Handler sock) {
 	socklen_t len = sizeof(opt);
 	int32_t ret = getsockopt(fd, IPPROTO_TCP, TCP_NODELAY,
 			&opt, &len);
-	error_exit(ret == -1, sock_get_nodelay);
+	error_exit(ret == -1, SocketOption_getNoDelay);
 	return opt;
 }
 
@@ -38,7 +38,7 @@ uint32_t SocketOption_getKeepAlive(Handler sock) {
 	socklen_t len = sizeof(opt);
 	int32_t ret = getsockopt(fd, SOL_SOCKET, SO_KEEPALIVE,
 			&opt, &len);
-	error_exit(ret == -1, sock_get_keepalive);
+	error_exit(ret == -1, SocketOption_getKeepAlive);
 	return opt;
 }
 
@@ -48,7 +48,17 @@ uint32_t SocketOption_getReuseAddr(Handler sock) {
 	socklen_t len = sizeof(opt);
 	int32_t ret = getsockopt(fd, SOL_SOCKET, SO_REUSEADDR,
 			&opt, &len);
-	error_exit(ret == -1, sock_get_reuseaddr);
+	error_exit(ret == -1, SocketOption_getReuseAddr);
+	return opt;
+}
+
+uint32_t SocketOption_getReusePort(Handler sock) {
+	fd_t fd = sock->fileno;
+	uint32_t opt;
+	socklen_t len = sizeof(opt);
+	int32_t ret = getsockopt(fd, SOL_SOCKET, SO_REUSEPORT,
+			&opt, &len);
+	error_exit(ret == -1, SocketOption_getReusePort);
 	return opt;
 }
 
@@ -58,7 +68,7 @@ uint32_t SockOption_getSendBuf(Handler sock) {
 	socklen_t len = sizeof(size);
 	int32_t ret = getsockopt(fd, SOL_SOCKET, SO_SNDBUF,
 			&size, &len);
-	error_exit(ret == -1, sock_get_sendbuf);
+	error_exit(ret == -1, SocketOption_getSendBuf);
 	return size;
 }
 
@@ -68,7 +78,7 @@ uint32_t SocketOption_getRecvBuf(Handler sock) {
 	socklen_t len = sizeof(size);
 	int32_t ret = getsockopt(fd, SOL_SOCKET, SO_RCVBUF,
 			&size, &len);
-	error_exit(ret == -1, sock_get_recvbuf);
+	error_exit(ret == -1, SocketOption_getRecvBuf);
 	return size;
 }
 
@@ -110,6 +120,13 @@ int32_t SocketOption_setReuseAddr(Handler sock, uint32_t opt) {
 	return ret;
 }
 
+int32_t SocketOption_setReusePort(Handler sock, uint32_t opt) {
+	fd_t fd = sock->fileno;
+	int32_t ret = setsockopt(fd, SOL_SOCKET, SO_REUSEPORT,
+			&opt, (socklen_t)sizeof(opt));
+	return ret;
+}
+
 int32_t SocketOption_setSendBuf(Handler sock, uint32_t size) {
 	fd_t fd = sock->fileno;
 	socklen_t len = sizeof(size);
@@ -131,6 +148,7 @@ int32_t SocketOption_setRecvBuf(Handler sock, uint32_t size) {
 	XX(KeepAlive) \
 	XX(NoDelay)   \
 	XX(ReuseAddr) \
+	XX(ReusePort) \
 	XX(SendBuf)   \
 	XX(RecvBuf) 
 
