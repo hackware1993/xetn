@@ -235,7 +235,7 @@ PRIVATE SockAddr __sockaddr_get(SockAddr addr, __addr_t* url) {
 	}
 	int32_t stat = getaddrinfo(url->host, url->serv, &hints, &res);
 	if(stat != 0) {
-		fprintf(stderr, "sockaddr_get: %s\n", gai_strerror(stat));
+		fprintf(stderr, "__sockaddr_get: %s\n", gai_strerror(stat));
 		exit(EXIT_FAILURE);
 	}
 	*addr = *res->ai_addr;
@@ -247,7 +247,7 @@ SockAddr SockAddr_get(SockAddr addr, const char* hs) {
 	__addr_t taddr;
 	__addr_t* ret = __addr_get(&taddr, hs);
 	if(ret == NULL) {
-		fprintf(stderr, "sockaddr_get: %s\n", "invalid addr");
+		fprintf(stderr, "SockAddr_get: %s\n", "invalid addr");
 		exit(EXIT_FAILURE);
 	}
 
@@ -268,7 +268,7 @@ const char* SockAddr_getAddr(SockAddr addr) {
 		char caddr[INET6_ADDRSTRLEN];
 		paddr = inet_ntop(AF_INET6, &taddr->sin6_addr, caddr, INET6_ADDRSTRLEN);
 	}
-	error_exit(paddr == NULL, sockaddr_get_addr);
+	error_exit(paddr == NULL, SockAddr_getAddr);
 	return strdup(paddr);
 }
 
@@ -404,10 +404,16 @@ void Socket_connect(Handler sock, SockAddr addr) {
 	error_exit(ret == -1, Socket_connect);
 }
 
-void Socket_getAddr(Handler sock, SockAddr addr) {
+void Socket_getLocalAddr(Handler sock, SockAddr addr) {
 	socklen_t len = sizeof(sockaddr_t);
 	int32_t ret = getsockname(sock->fileno, addr, &len);
-	error_exit(ret == -1, Socket_getAddr);
+	error_exit(ret == -1, Socket_getLocalAddr);
+}
+
+void Socket_getRemoteAddr(Handler sock, SockAddr addr) {
+	socklen_t len = sizeof(sockaddr_t);
+	int32_t ret = getpeername(sock->fileno, addr, &len);
+	error_exit(ret == -1, Socket_getRemoteAddr);
 }
 
 int32_t Socket_getErrno(Handler sock) {

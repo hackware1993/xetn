@@ -37,7 +37,8 @@ Handler Socket_accept(Handler, Handler);
 
 void    Socket_listen(Handler, SockAddr);
 void    Socket_connect(Handler, SockAddr);
-void    Socket_getAddr(Handler, SockAddr);
+void    Socket_getLocalAddr(Handler, SockAddr);
+void    Socket_getRemoteAddr(Handler, SockAddr);
 int32_t Socket_getErrno(Handler);
 
 uint32_t SocketOption_getNonBlock(Handler);
