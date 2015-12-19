@@ -4,20 +4,26 @@
  * Internal regbuf layout
  */
 #define JB_SP  0*4
-#define JB_BX  1*4
-#define JB_SI  2*4
-#define JB_DI  3*4
-#define JB_BP  4*4
+#define JB_BP  1*4
+#define JB_BX  2*4
+#define JB_SI  3*4
+#define JB_DI  4*4
 #define JB_PC  5*4
 
-        .file "md.S"
+        .file "coroutine.S"
         .text
 
         /* setreg(regbuf env) */
+#ifdef _WIN32
+.globl _setreg
+		.def _setreg; .scl 2; .type 32; .endef
+_setreg:
+#else
 .globl setreg
         .type setreg, @function
         .align 16
 setreg:
+#endif
         movl 4(%esp), %eax
 
         movl %ebx, (JB_BX)(%eax)
@@ -33,44 +39,23 @@ setreg:
         movl %ebp, (JB_BP)(%eax)
         xorl %eax, %eax
         ret
+#ifndef _WIN32
         .size setreg, .-setreg
-
-
-/****************************************************************/
-
-        /* regjmp(regbuf env, int val) */
-.globl regjmp
-        .type regjmp, @function
-        .align 16
-regjmp:
-        /* First argument is jmp_buf */
-        movl 4(%esp), %ecx
-        /* Second argument is return value */
-        movl 8(%esp), %eax
-        /* Set the return address */
-        movl (JB_PC)(%ecx), %edx
-        /*
-         * Restore registers.
-         */
-        movl (JB_BX)(%ecx), %ebx
-        movl (JB_SI)(%ecx), %esi
-        movl (JB_DI)(%ecx), %edi
-        movl (JB_BP)(%ecx), %ebp
-        movl (JB_SP)(%ecx), %esp
-        testl %eax, %eax
-        jnz  1f
-        incl %eax
-        /* Jump to saved PC */
-1:      jmp *%edx
-        .size regjmp, .-regjmp
+#endif
 
 /****************************************************************/
 
-        /* regsw(regbuf env, int ret) */
+        /* regsw(regbuf env, void* para) */
+#ifdef _WIN32
+.globl _regsw
+		.def _regsw; .scl 2; .type 32; .endef
+_regsw:
+#else
 .globl regsw
         .type regsw, @function
         .align 16
 regsw:
+#endif
 		/* get parameter */
 		movl 4(%esp), %eax
 		/* exchange BX */
@@ -105,7 +90,9 @@ regsw:
 		/* return the second value */
 		movl -8(%edx), %eax
 		jmp *%ecx
+#ifndef _WIN32
         .size regsw, .-regsw
+#endif
 
 /****************************************************************/
 
@@ -115,21 +102,26 @@ regsw:
  * Internal regbuf layout
  */
 #define JB_RSP  0*8
-#define JB_RBX  1*8
-#define JB_RBP  2*8
+#define JB_RBP  1*8
+#define JB_RBX  2*8
 #define JB_R12  3*8
 #define JB_R13  4*8
 #define JB_R14  5*8
 #define JB_R15  6*8
 #define JB_PC   7*8
 
-        .file "md.S"
+        .file "coroutine.S"
         .text
 
         /* setreg(regbuf env) */
 .globl setreg
+#ifdef _WIN32
+		.def setreg; .scl 2; .type 32; .endef
+		.seh_proc setreg
+#else
         .type setreg, @function
         .align 16
+#endif
 setreg:
         movq %rbx, (JB_RBX)(%rdi)
         movq %rbp, (JB_RBP)(%rdi)
@@ -145,42 +137,23 @@ setreg:
         movq %rax, (JB_PC)(%rdi)
         xorq %rax, %rax
         ret
+#ifdef _WIN32
+		.seh_endproc
+#else
         .size setreg, .-setreg
-
-
-/****************************************************************/
-
-        /* regjmp(regbuf env, int val) */
-.globl regjmp
-        .type regjmp, @function
-        .align 16
-regjmp:
-        /*
-         * Restore registers.
-         */
-        movq (JB_RBX)(%rdi), %rbx
-        movq (JB_RBP)(%rdi), %rbp
-        movq (JB_R12)(%rdi), %r12
-        movq (JB_R13)(%rdi), %r13
-        movq (JB_R14)(%rdi), %r14
-        movq (JB_R15)(%rdi), %r15
-        /* Set return value */
-        test %esi, %esi
-        mov $01, %eax
-        cmove %eax, %esi
-        mov %esi, %eax
-        movq (JB_PC)(%rdi), %rdx
-        movq (JB_RSP)(%rdi), %rsp
-        /* Jump to saved PC */
-        jmpq *%rdx
-        .size regjmp, .-regjmp
+#endif
 
 /****************************************************************/
 
-        /* regsw(regbuf env, int ret) */
+        /* regsw(regbuf env, void* para) */
 .globl regsw
+#ifdef _WIN32
+		.def regsw; .scl 2; .type 32; .endef
+		.seh_proc regsw
+#else
         .type regsw, @function
         .align 16
+#endif
 regsw:
 		/* exchange RBX */
 		movq (JB_RBX)(%rdi), %rdx
@@ -219,6 +192,10 @@ regsw:
 		/* return the second value */
 		movq %rsi, %rax
 		jmpq *%rcx
+#ifdef _WIN32
+		.seh_endproc
+#else
         .size regsw, .-regsw
+#endif
 #endif
 
