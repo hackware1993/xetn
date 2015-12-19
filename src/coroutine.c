@@ -2,64 +2,132 @@
 
 #include <stdio.h>
 #include <stdint.h>
+#include <fcntl.h>
+#include <unistd.h>
+#ifndef _WIN32
+#include <sys/mman.h>
+#endif
+
+#define PAGE_SIZE 4096
+#define RED_ZONE 128
+#define GREEN_ZONE 512
+
+extern void* setreg(regbuf_t);
+extern void* regsw(regbuf_t, void*);
 
 #define PRIVATE static
 
-PRIVATE void __bridge() {
-	/* get the pointer to the keys */
-	void* zone;
-	zone = (void*)(((long)&zone + PAGE_SIZE - 1) / PAGE_SIZE * PAGE_SIZE);
-	zone -= sizeof(void*) * 12;
-	void** keys = (void**)zone;
-	Coroutine coro = (Coroutine)keys[0];
-
+PRIVATE void __sched(Coroutine coro) {
+	long ret;
+	void* para = regsw(coro->env, NULL);
 MAIN_RUN:
-	coro->main(coro);
-END_AGAIN:
+	para = coro->main(coro, para);
 	coro->state = CORO_END;
-	int ret = regsw(coro->env, 0);
+END_AGAIN:
+	ret = (long)regsw(coro->env, para);
 	switch(ret) {
-		case -1:
-			Coroutine_yield(coro);
+		case CORO_PROMPT_RESET:
+			para = regsw(coro->env, NULL);
 			goto MAIN_RUN;
 		default:
 	/* can not resume coroutine whose state is C_END */
 	/* this situation can be seen as a kind of error */
+			para = NULL;
 			goto END_AGAIN;
 	}
 }
 
-Coroutine Coroutine_new(size_t size) {
+Coroutine Coroutine_new(coro_cb_t main, size_t size) {
+#ifdef _WIN32
+	size_t page_size = PAGE_SIZE;
+#else
+	size_t page_size = sysconf(_SC_PAGESIZE);
+#endif
 	if(size <= STK_DEFAULT_SIZE) {
 		size = STK_DEFAULT_SIZE;
 	} else {
-		size = (size + PAGE_SIZE - 1) / PAGE_SIZE * PAGE_SIZE;
+		size = (size + page_size - 1) / page_size * page_size;
 	}
-	void* stk = aligned_alloc(PAGE_SIZE, size);
+#ifdef _WIN32
+	HANDLE hmap;
+	hmap = CreateFileMapping(
+			INVALID_HANDLE_VALUE,
+			NULL,
+			PAGE_READWRITE,
+			0,
+			size,
+			NULL
+	);
+	void* stk = MapViewOfFile(
+			hmap,
+			FILE_MAP_ALL_ACCESS,
+			0,
+			0,
+			size
+	);
+#else
+	int mmap_flags = MAP_PRIVATE | MAP_ANON;
+	void* stk = mmap(NULL, size, PROT_READ | PROT_WRITE, mmap_flags, -1, 0);
+
+	if(stk == MAP_FAILED) {
+		return NULL;
+	}
+#endif
+
 	Coroutine coro = (Coroutine)stk;
-	coro->state = CORO_INIT;
+#ifdef _WIN32
+	coro->page = hmap;
+#endif
+	coro->len = size;
+	coro->main = main;
 	coro->stk = stk;
 	coro->bot = stk + GREEN_ZONE;
-	coro->top = stk + (STK_DEFAULT_SIZE - RED_ZONE);
+	coro->top = stk + (size - RED_ZONE);
+	Coroutine local = NULL;
+	if((local = setreg(coro->env))) {
+		__sched(local);
+		/* NOTICE: PC will NEVER arrive this position */
+	}
+	coro->sp = coro->env[0];
+	coro->env[0] = coro->top;
+
+	regsw(coro->env, coro);
+	coro->state = CORO_INIT;
 	return coro;
 }
 
-void Coroutine_bind(Coroutine coro, coro_cb_t main) {
-	if(Coroutine_isInit(coro) == 0) {
-		coro->main = main;
-		return;
-	}
-	if(setreg(coro->env)) {
-		__bridge();
-		/* NOTICE: pc NEVER point to this position */
-	}
+void Coroutine_close(Coroutine coro) {
+	assert(!Coroutine_isRun(coro));
+#ifdef _WIN32
+	HANDLE hmap = coro->page;
+	UnmapViewOfFile(coro->stk);
+	CloseHandle(hmap);
+#else
+	/* it should not be error here, if the stk * len is not modified */
+	int ret = munmap(coro->stk, coro->len);
+	// TODO: check -1 here, and remove assert
+	assert(ret != -1);
+#endif
+}
+
+void* Coroutine_yield(Coroutine coro, void* para) {
+	assert(Coroutine_isRun(coro));
 	coro->state = CORO_PEND;
-	//coro->ctx = ctx;
-	coro->main = main;
-	coro->sp = coro->env[0];
-	coro->env[0] = coro->top;
-	void* keys = coro->stk + (STK_DEFAULT_SIZE - sizeof(void*) * 12);
-	((void**)keys)[0] = coro;
+	return regsw(coro->env, para);
+}
+void* Coroutine_resume(Coroutine coro, void* para) {
+	assert(Coroutine_isPend(coro) || Coroutine_isInit(coro));
+	coro->state = CORO_RUN;
+	return regsw(coro->env, para);
+}
+
+void Coroutine_reset(Coroutine coro, coro_cb_t main) {
+	assert(Coroutine_isEnd(coro));
+	if(main) {
+		coro->main = main;
+	}
+	coro->state = CORO_INIT;
+	regsw(coro->env, (void*)CORO_PROMPT_RESET);
 }
 
 /* the following functions is used for DEBUG */
