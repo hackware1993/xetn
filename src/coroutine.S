@@ -96,6 +96,42 @@ regsw:
 
 /****************************************************************/
 
+        /* regjmp(regbuf env, int val) */
+#ifdef _WIN32
+.globl _regjmp
+		.def _regjmp; .scl 2; .type 32; .endef
+_regjmp:
+#else
+.globl regjmp
+        .type regjmp, @function
+        .align 16
+regjmp:
+#endif
+        /* First argument is jmp_buf */
+        movl 4(%esp), %ecx
+        /* Second argument is return value */
+        movl 8(%esp), %eax
+        /* Set the return address */
+        movl (JB_PC)(%ecx), %edx
+        /*
+         * Restore registers.
+         */
+        movl (JB_BX)(%ecx), %ebx
+        movl (JB_SI)(%ecx), %esi
+        movl (JB_DI)(%ecx), %edi
+        movl (JB_BP)(%ecx), %ebp
+        movl (JB_SP)(%ecx), %esp
+        testl %eax, %eax
+        jnz  1f
+        incl %eax
+        /* Jump to saved PC */
+1:      jmp *%edx
+#ifndef _WIN32
+        .size regjmp, .-regjmp
+#endif
+
+/****************************************************************/
+
 #elif defined(__amd64__) || defined(__x86_64__)
 
 /*
@@ -197,5 +233,44 @@ regsw:
 #else
         .size regsw, .-regsw
 #endif
+
+/****************************************************************/
+
+		/* regjmp(regbuf env, int val)*/
+.globl regjmp
+#ifdef _WIN32
+		.def regjmp; .scl 2; .type 32; .endef
+		.seh_proc regjmp
+#else
+        .type regjmp, @function
+        .align 16
+#endif
+regjmp:
+        /*
+         * Restore registers.
+         */
+        movq (JB_RBX)(%rdi), %rbx
+        movq (JB_RBP)(%rdi), %rbp
+        movq (JB_R12)(%rdi), %r12
+        movq (JB_R13)(%rdi), %r13
+        movq (JB_R14)(%rdi), %r14
+        movq (JB_R15)(%rdi), %r15
+        /* Set return value */
+        test %esi, %esi
+        mov $01, %eax
+        cmove %eax, %esi
+        mov %esi, %eax
+        movq (JB_PC)(%rdi), %rdx
+        movq (JB_RSP)(%rdi), %rsp
+        /* Jump to saved PC */
+        jmpq *%rdx
+#ifdef _WIN32
+		.seh_endproc
+#else
+        .size regjmp, .-regjmp
+#endif
+
+/****************************************************************/
+
 #endif
 
