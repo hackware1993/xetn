@@ -7,8 +7,29 @@
 
 #include <string.h>
 
+void* run(Coroutine coro, void* arg) {
+	assert_true(Coroutine_isRun(coro));
+
+	char* str = "hello";
+	assert_memory_equal(arg, str, strlen(str));
+
+	arg = Coroutine_yield(coro, "yield1");
+	assert_true(Coroutine_isRun(coro));
+
+	str = "world";
+	assert_memory_equal(arg, str, strlen(str));
+
+	arg = Coroutine_yield(coro, "yield2");
+	assert_true(Coroutine_isRun(coro));
+
+	str = "done";
+	assert_memory_equal(arg, str, strlen(str));
+
+	return "finish";
+}
+
 static int test_setup(void** state) {
-	Coroutine coro = Coroutine_new(1);
+	Coroutine coro = Coroutine_new(run, 4096);
 	*state = coro;
 	return 0;
 }
@@ -17,37 +38,22 @@ static int test_teardown(void** state) {
 	return 0;
 }
 
-void run(Coroutine coro) {
-	assert_true(Coroutine_isRun(coro));
-	char* str = "hello";
-	assert_memory_equal(coro->res, str, strlen(str));
-
-	Coroutine_yield(coro);
-	assert_true(Coroutine_isRun(coro));
-	str = "world";
-	assert_memory_equal(coro->res, str, strlen(str));
-
-	Coroutine_yield(coro);
-	assert_true(Coroutine_isRun(coro));
-}
-
 static void test_resume_yield_status(void** state) {
 	Coroutine coro = (Coroutine)*state;
 	assert_true(Coroutine_isInit(coro));
 
-	Coroutine_bind(coro, &run);
+	char* arg;
+	arg = Coroutine_resume(coro, "hello");
 	assert_true(Coroutine_isPend(coro));
+	assert_memory_equal(arg, "yield1", 6);
 
-	coro->res = "hello";
-	Coroutine_resume(coro);
+	arg = Coroutine_resume(coro, "world");
 	assert_true(Coroutine_isPend(coro));
+	assert_memory_equal(arg, "yield2", 6);
 
-	coro->res = "world";
-	Coroutine_resume(coro);
-	assert_true(Coroutine_isPend(coro));
-
-	Coroutine_resume(coro);
+	arg = Coroutine_resume(coro, "done");
 	assert_true(Coroutine_isEnd(coro));
+	assert_memory_equal(arg, "finish", 6);
 }
 
 int main() {

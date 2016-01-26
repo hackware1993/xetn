@@ -8,7 +8,7 @@ all: _test_buffer _test_coroutine
 _test_buffer: test_buffer.c $(SRC)/buffer.c
 	$(CC) -o $@ $(LIB) $^
 
-_test_coroutine: test_coroutine.c $(SRC)/coroutine.c $(SRC)/md.S
+_test_coroutine: test_coroutine.c $(SRC)/coroutine.c $(SRC)/coroutine.S
 	$(CC) -o $@ $(LIB) $^
 
 .PHONY: clean
