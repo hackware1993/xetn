@@ -32,3 +32,14 @@ uint32_t Buffer_getArr(Buffer buf, char* arr, uint32_t off, size_t len) {
 	buf->pos += len;
 	return res;
 }
+
+char* Buffer_getStr(Buffer buf) {
+	int len = buf->end - buf->pos;
+	if(len == 0) {
+		return NULL;
+	}
+	char* res = (char*)malloc(len + 1);
+	strncpy(res, buf->ptr, len);
+	res[len] = '\0';
+	return res;
+}

@@ -59,4 +59,6 @@ uint32_t Buffer_putArr(Buffer, char*, uint32_t, size_t);
 
 uint32_t Buffer_getArr(Buffer, char*, uint32_t, size_t);
 
+char*    Buffer_getStr(Buffer);
+
 #endif // _BUFFER_H_
