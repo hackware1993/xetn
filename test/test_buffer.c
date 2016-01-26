@@ -110,6 +110,15 @@ static void test_buffer_put_get(void** state) {
 	assert_int_equal(Buffer_getCap(buf), 10);
 	assert_true(Buffer_isEmpty(buf));
 }
+static void test_buffer_get_str(void** state) {
+	Buffer buf = (Buffer)*state;
+	char str[] = "hello";
+	unsigned len = Buffer_putArr(buf, str, 0, 5);
+	assert_int_equal(len, 5);
+	assert_int_equal(Buffer_getLen(buf), 5);
+	assert_int_equal(Buffer_getStr(buf)[5], '\0');
+	assert_memory_equal(Buffer_getStr(buf), "hello", 6);
+}
 
 static void test_buffer_get_put_arr(void** state) {
 	Buffer buf = (Buffer)*state;
@@ -163,6 +172,7 @@ int main() {
 		cmocka_unit_test_setup_teardown(test_buffer_new, test_setup, test_teardown),
 		cmocka_unit_test_setup_teardown(test_buffer_put_get, test_setup, test_teardown),
 		cmocka_unit_test_setup_teardown(test_buffer_get_put_arr, test_setup, test_teardown),
+		cmocka_unit_test_setup_teardown(test_buffer_get_str, test_setup, test_teardown),
 	};
 	return cmocka_run_group_tests(tests, NULL, NULL);
 }
