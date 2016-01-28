@@ -5,7 +5,7 @@
 #include <pthread.h>
 
 /**
- * ThreadPool is provide for the following situation:
+ * ThreadPool is provided for the following situations:
  *     1. there is a master thread and several worker threads
  *     2. master thread cannot block for a long time
  *     3. worker can be blocked until the task is accomplished
@@ -36,15 +36,18 @@ typedef struct thread {
 	pthread_t  tid;
 	Task       tasks;
 	thrsig_t   signal;
+	// TODO: counter for internal tasks
+	uint32_t   ntasks;
 	pthread_cond_t cond;
 	struct thread_pool*  pool;
 } thread_t, *Thread;
 
 struct task_queue;
 typedef struct thread_pool {
-	uint32_t num_threads;
-
-	Thread threads;
+	/* used for load-balance */
+	uint16_t  round;
+	uint32_t nthreads;
+	Thread   threads;
 	struct task_queue* taskq;
 } thread_pool_t, *ThreadPool;
 
@@ -56,7 +59,6 @@ void ThreadPool_wait(ThreadPool);
 void ThreadPool_stop(ThreadPool);
 void ThreadPool_halt(ThreadPool);
 
-Task ThreadPool_getTask(ThreadPool, Thread);
 void ThreadPool_putTask(ThreadPool, Task);
 
 #endif // _THREADPOOL_H_
