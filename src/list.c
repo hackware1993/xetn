@@ -3,6 +3,8 @@
 #include <stdlib.h>
 #include <stdio.h>
 
+#include "optimize.h"
+
 #define PRIVATE static
 
 typedef struct link_node {
@@ -23,12 +25,12 @@ LinkList LinkList_init(LinkList li) {
 	return li;
 }
 void LinkList_free(LinkList li) {
-	if(li->list == NULL) {
+	if(UNLIKELY(li->list == NULL)) {
 		return;
 	}
 	LinkNode p = li->list->next;
 	LinkNode temp = NULL;
-	while(p != li->list) {
+	while(LIKELY(p != li->list)) {
 		temp = p;
 		p = p->next;
 		free(temp);
@@ -39,7 +41,7 @@ void LinkList_free(LinkList li) {
 
 void LinkList_put(LinkList li, void* content) {
 	LinkNode n = LinkNode_new(content, NULL);
-	if(li->list != NULL) {
+	if(LIKELY(li->list != NULL)) {
 		n->next = li->list->next;
 		li->list->next = n;
 		li->list = n;
@@ -51,13 +53,13 @@ void LinkList_put(LinkList li, void* content) {
 }
 
 void* LinkList_get(LinkList li) {
-	if(li->list == NULL) {
+	if(UNLIKELY(li->list == NULL)) {
 		return NULL;
 	}
 	void* res;
 	LinkNode p = li->list->next;
 	res = p->content;
-	if(li->list != p) {
+	if(LIKELY(li->list != p)) {
 		li->list->next = p->next;
 	} else {
 		li->list = NULL;
@@ -69,7 +71,7 @@ void* LinkList_get(LinkList li) {
 
 void LinkList_push(LinkList li, void* content) {
 	LinkNode n = LinkNode_new(content, NULL);
-	if(li->list != NULL) {
+	if(LIKELY(li->list != NULL)) {
 		n->next = li->list->next;
 		li->list->next = n;
 	} else {
@@ -80,13 +82,13 @@ void LinkList_push(LinkList li, void* content) {
 }
 
 void* LinkList_pop(LinkList li) {
-	if(li->list == NULL) {
+	if(UNLIKELY(li->list == NULL)) {
 		return NULL;
 	}
 	void* res;
 	LinkNode p = li->list->next;
 	res = p->content;
-	if(li->list != p) {
+	if(LIKELY(li->list != p)) {
 		li->list->next = p->next;
 	} else {
 		li->list = NULL;
@@ -150,4 +152,32 @@ uint32_t ArrayList_length(ArrayList li) {
 
 void ArrayList_clear(ArrayList li) {
 	li->pos = 0;
+}
+
+RingList RingList_init(RingList list, uint32_t size) {
+	uint32_t cap = 1;
+	while(cap < size) {
+		cap <<= 1;
+	}
+	list->cap  = cap;
+	list->len  = 0;
+	list->head = 0;
+	list->tail = 0;
+	list->zone = (void*)malloc(sizeof(void*) * cap);
+	return list;
+}
+
+void RingList_put(RingList list, void* ele) {
+	uint32_t tail = list->tail;
+	list->zone[tail++] = ele;
+	list->tail = tail & (list->cap - 1);
+	++list->len;
+}
+
+void* RingList_get(RingList list) {
+	uint32_t head = list->head;
+	void* res = list->zone[head++];
+	list->head = head & (list->cap - 1);
+	--list->len;
+	return res;
 }
