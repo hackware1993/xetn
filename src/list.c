@@ -43,13 +43,14 @@ void LinkList_append(LinkList dest, LinkList src) {
 		return;
 	}
 	if(LIKELY(dest->list != NULL)) {
-		LinkNode temp = src->list->next;
-		src->list->next = dest->list->next;
-		dest->list->next = temp;
+		LinkNode temp = dest->list->next;
+		dest->list->next = src->list->next;
+		src->list->next = temp;
 	} else {
 		dest->list = src->list;
 	}
 	dest->len += src->len;
+	dest->list = src->list;
 	src->list = NULL;
 	src->len = 0;
 }
