@@ -39,6 +39,7 @@ void     LinkList_put(LinkList, void*);
 void*    LinkList_get(LinkList);
 void     LinkList_push(LinkList, void*);
 void*    LinkList_pop(LinkList);
+void     LinkList_append(LinkList, LinkList);
 uint32_t LinkList_length(LinkList);
 
 typedef struct ring_list {

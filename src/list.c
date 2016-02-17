@@ -1,6 +1,5 @@
 #include "list.h"
 
-#include <stdlib.h>
 #include <stdio.h>
 
 #include "optimize.h"
@@ -37,6 +36,22 @@ void LinkList_free(LinkList li) {
 	}
 	free(p);
 	li->len = 0;
+}
+
+void LinkList_append(LinkList dest, LinkList src) {
+	if(src->len == 0) {
+		return;
+	}
+	if(LIKELY(dest->list != NULL)) {
+		LinkNode temp = src->list->next;
+		src->list->next = dest->list->next;
+		dest->list->next = temp;
+	} else {
+		dest->list = src->list;
+	}
+	dest->len += src->len;
+	src->list = NULL;
+	src->len = 0;
 }
 
 void LinkList_put(LinkList li, void* content) {
