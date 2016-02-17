@@ -26,15 +26,15 @@ static void test_linklist_push_pop(void** state) {
 	LinkList_push(list, 4);
 	LinkList_push(list, 5);
 	int ret = 0;
-	ret = LinkList_pop(list);
+	ret = (int)LinkList_pop(list);
 	assert_int_equal(ret, 5);
-	ret = LinkList_pop(list);
+	ret = (int)LinkList_pop(list);
 	assert_int_equal(ret, 4);
-	ret = LinkList_pop(list);
+	ret = (int)LinkList_pop(list);
 	assert_int_equal(ret, 3);
-	ret = LinkList_pop(list);
+	ret = (int)LinkList_pop(list);
 	assert_int_equal(ret, 2);
-	ret = LinkList_pop(list);
+	ret = (int)LinkList_pop(list);
 	assert_int_equal(ret, 1);
 }
 
@@ -47,15 +47,15 @@ static void test_linklist_put_get(void** state) {
 	LinkList_put(list, 4);
 	LinkList_put(list, 5);
 	int ret = 0;
-	ret = LinkList_get(list);
+	ret = (int)LinkList_get(list);
 	assert_int_equal(ret, 1);
-	ret = LinkList_get(list);
+	ret = (int)LinkList_get(list);
 	assert_int_equal(ret, 2);
-	ret = LinkList_get(list);
+	ret = (int)LinkList_get(list);
 	assert_int_equal(ret, 3);
-	ret = LinkList_get(list);
+	ret = (int)LinkList_get(list);
 	assert_int_equal(ret, 4);
-	ret = LinkList_get(list);
+	ret = (int)LinkList_get(list);
 	assert_int_equal(ret, 5);
 }
 static void test_linklist_length(void** state) {
@@ -94,9 +94,9 @@ static void test_linklist_append(void** state) {
 	LinkList_append(list, &li2);
 	assert_int_equal(LinkList_length(list), 1);
 
-	LinkList_put(&li1, 2);
 	LinkList_put(&li1, 3);
 	LinkList_put(&li1, 4);
+	LinkList_put(&li1, 5);
 	assert_int_equal(LinkList_length(&li1), 3);
 
 	LinkList_put(list, 2);
@@ -104,6 +104,21 @@ static void test_linklist_append(void** state) {
 	LinkList_append(list, &li1);
 	assert_int_equal(LinkList_length(list), 5);
 	assert_int_equal(LinkList_length(&li1), 0);
+
+	LinkList_free(&li1);
+	LinkList_free(&li2);
+
+	int ret = 0;
+	ret = (int)LinkList_get(list);
+	assert_int_equal(ret, 1);
+	ret = (int)LinkList_get(list);
+	assert_int_equal(ret, 2);
+	ret = (int)LinkList_get(list);
+	assert_int_equal(ret, 3);
+	ret = (int)LinkList_get(list);
+	assert_int_equal(ret, 4);
+	ret = (int)LinkList_get(list);
+	assert_int_equal(ret, 5);
 }
 
 int main() {
