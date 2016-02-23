@@ -3,12 +3,12 @@ A simple web application server written in C.
 
 ### Module
 
-* Reactor    => partly done
-* ThreadPool => almost done
-* Coroutine  => done
-* mempool    => pending
-* HttpCodec  => partly done
-* WsgiCodec
+* [-] Reactor
+* [-] ThreadPool
+* [+] Coroutine
+* [-] HttpCodec
+* [ ] WsgiCodec
+* [ ] mempool
 
 ### Dependency
 
