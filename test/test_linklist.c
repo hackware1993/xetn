@@ -120,6 +120,31 @@ static void test_linklist_append(void** state) {
 	ret = (int)LinkList_get(list);
 	assert_int_equal(ret, 5);
 }
+static void test_linklist_inverse(void** state) {
+	LinkList list = (LinkList)*state;
+
+	LinkList_put(list, 1);
+	LinkList_put(list, 2);
+	LinkList_put(list, 3);
+	LinkList_put(list, 4);
+	LinkList_put(list, 5);
+
+	assert_int_equal(LinkList_length(list), 5);
+	LinkList_inverse(list);
+	assert_int_equal(LinkList_length(list), 5);
+
+	int ret = 0;
+	ret = (int)LinkList_get(list);
+	assert_int_equal(ret, 5);
+	ret = (int)LinkList_get(list);
+	assert_int_equal(ret, 4);
+	ret = (int)LinkList_get(list);
+	assert_int_equal(ret, 3);
+	ret = (int)LinkList_get(list);
+	assert_int_equal(ret, 2);
+	ret = (int)LinkList_get(list);
+	assert_int_equal(ret, 1);
+}
 
 int main() {
 	const struct CMUnitTest tests[] = {
@@ -127,6 +152,7 @@ int main() {
 		cmocka_unit_test_setup_teardown(test_linklist_put_get,  test_setup, test_teardown),
 		cmocka_unit_test_setup_teardown(test_linklist_length,   test_setup, test_teardown),
 		cmocka_unit_test_setup_teardown(test_linklist_append,   test_setup, test_teardown),
+		cmocka_unit_test_setup_teardown(test_linklist_inverse,   test_setup, test_teardown),
 	};
 	return cmocka_run_group_tests(tests, NULL, NULL);
 }
