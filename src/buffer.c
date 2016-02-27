@@ -18,7 +18,7 @@ uint32_t Buffer_putArr(Buffer buf, char* arr, uint32_t off, size_t len) {
 	len = (len > rest) ? rest : len;
 
 	size_t res = len;
-	strncpy(buf->ptr + buf->end, arr + off, len);
+	memcpy(buf->ptr + buf->end, arr + off, len);
 	buf->end += len;
 	return res;
 }
@@ -28,7 +28,7 @@ uint32_t Buffer_getArr(Buffer buf, char* arr, uint32_t off, size_t len) {
 	len = (len > rest) ? rest : len;
 
 	size_t res = len;
-	strncpy(arr + off, buf->ptr + buf->pos, len);
+	memcpy(arr + off, buf->ptr + buf->pos, len);
 	buf->pos += len;
 	return res;
 }
@@ -39,7 +39,7 @@ char* Buffer_getStr(Buffer buf) {
 		return NULL;
 	}
 	char* res = (char*)malloc(len + 1);
-	strncpy(res, buf->ptr, len);
+	memcpy(res, buf->ptr, len);
 	res[len] = '\0';
 	return res;
 }
