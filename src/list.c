@@ -114,8 +114,18 @@ void* LinkList_pop(LinkList li) {
 	return res;
 }
 
-uint32_t LinkList_length(LinkList li) {
-	return li->len;
+void LinkList_inverse(LinkList li) {
+	LinkNode cur_node = li->list;
+	LinkNode pnext = cur_node->next;
+	LinkNode nxt_node = NULL;
+	li->list = pnext;
+	uint32_t i;
+	for(i = 0; i < li->len; ++i) {
+		nxt_node = pnext;
+		pnext    = nxt_node->next;
+		nxt_node->next = cur_node;
+		cur_node = nxt_node;
+	}
 }
 
 ArrayList ArrayList_init(ArrayList li, uint32_t len) {

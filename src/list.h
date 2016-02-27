@@ -40,7 +40,8 @@ void*    LinkList_get(LinkList);
 void     LinkList_push(LinkList, void*);
 void*    LinkList_pop(LinkList);
 void     LinkList_append(LinkList, LinkList);
-uint32_t LinkList_length(LinkList);
+void     LinkList_inverse(LinkList);
+#define  LinkList_length(l) (l)->len
 
 typedef struct ring_list {
 	uint32_t head;
