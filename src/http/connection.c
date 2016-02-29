@@ -1,30 +1,12 @@
 #include "connection.h"
+#include "datamap.h"
 #include <stdlib.h>
 #include <string.h>
 
-#define PRIVATE static
+#include <assert.h>
+#include <stdio.h>
 
-#define XX(name) #name,
-PRIVATE char* METHOD_NAME[] = { METHOD_MAP(XX) };
-#undef XX
-#define XX(tag, name) #name,
-PRIVATE char* VERSION_NAME[] = { VERSION_MAP(XX) };
-#undef XX
-#define XX(a, b, c) c,
-PRIVATE const char* HEADER_NAMES[] = { HEADER_MAP(XX) };
-#undef XX
-#define XX(a, b, c) b,
-PRIVATE uint8_t HEADER_LENS[] = { HEADER_MAP(XX) };
-#undef XX
-#define XX(a, b, c) #a,
-PRIVATE const char* HEADER_LABELS[] = { HEADER_MAP(XX) };
-#undef XX
-#define XX(a, b, c) b,
-PRIVATE uint16_t STATUS_NUM[] = { STATUS_MAP(XX) };
-#undef XX
-#define XX(a, b, c) c,
-PRIVATE char* STATUS_DESC[] = { STATUS_MAP(XX) };
-#undef XX
+#define PRIVATE static
 
 extern http_header_t HttpHeader_find(uint32_t, uint32_t);
 
@@ -50,8 +32,9 @@ const char* HttpConnection_getVersion(HttpConnection conn) {
 
 const char* HttpConnection_getHeader(HttpConnection conn, const char* name) {
 	uint32_t hash = 0;
-	while(*name) {
-		hash = (hash << 7) + (hash << 1) + hash + *name++;
+	const char* str = name;
+	while(*str) {
+		hash = (hash << 7) + (hash << 1) + hash + *str++;
 	}
 	hash &= 0x7FFFFFFF;
 	uint32_t index = hash % 237;
@@ -64,7 +47,7 @@ const char* HttpConnection_getHeader(HttpConnection conn, const char* name) {
 		uint32_t* pend = conn->fields + 128;
 		while(pf < pend && *pf) {
 			ExtraField ef = conn->data + *pf++;
-			if(ef->hash && strcmp(conn->data + ef->key, name) == 0) {
+			if(ef->hash == hash && strcmp(conn->data + ef->key, name) == 0) {
 				res = conn->data + ef->value;
 				break;
 			}

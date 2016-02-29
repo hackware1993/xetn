@@ -32,6 +32,8 @@ typedef enum http_method {
 } http_method_t;
 #undef XX
 
+#define HEADER_MAX 128
+
 typedef struct extra_field {
 	uint32_t hash;
 	uint32_t key;
