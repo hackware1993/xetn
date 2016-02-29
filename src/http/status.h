@@ -49,6 +49,7 @@
 #define XX(a, b, c) a,
 typedef enum http_status {
 	STATUS_MAP(XX)
+	ST_INVALID,
 } http_status_t;
 #undef XX
 
