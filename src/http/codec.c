@@ -164,7 +164,7 @@ http_status_t HttpStatus_find(int32_t num) {
 	return res;
 }
 enum {
-	LINE_METHOD, LINE_PATH, LINE_VER, LINE_EOL,
+	REQL_METHOD, REQL_PATH, REQL_VER, REQL_EOL,
 };
 
 enum {
@@ -244,10 +244,10 @@ PRIVATE int8_t decode_req_line(HttpDecoder decoder) {
 	
 	/* state entry navigation */
 	switch(step) {
-		case LINE_METHOD: goto ENTRY_METHOD;
-		case LINE_PATH:   goto ENTRY_PATH;
-		case LINE_VER:    goto ENTRY_VER;
-		case LINE_EOL:    goto ENTRY_EOL;
+		case REQL_METHOD: goto ENTRY_METHOD;
+		case REQL_PATH:   goto ENTRY_PATH;
+		case REQL_VER:    goto ENTRY_VER;
+		case REQL_EOL:    goto ENTRY_EOL;
 	}
 ENTRY_METHOD:
 	while(!Buffer_isEnd(buf)) {
@@ -255,7 +255,7 @@ ENTRY_METHOD:
 		if(LIKELY(ch != SP)) {
 			HASH(hash, ch);
 		} else {
-			step = LINE_PATH;
+			step = REQL_PATH;
 			hash &= 0x7FFFFFFF;
 			ret = find_method(hash);
 			if(ret == -1) {
@@ -274,7 +274,7 @@ ENTRY_PATH:
 		if(LIKELY(URL_TOKEN_MAP[ch])) {
 			MemBlock_putChar(temp, ch);
 		} else if(ch == SP) {
-			step = LINE_VER;
+			step = REQL_VER;
 			req->str = MemBlock_getStr(temp);
 			goto ENTRY_VER;
 		} else {
@@ -289,7 +289,7 @@ ENTRY_VER:
 		if(LIKELY(ch != CR)) {
 			HASH(hash, ch);
 		} else {
-			step = LINE_EOL;
+			step = REQL_EOL;
 			hash &= 0x7FFFFFFF;
 			ret = find_version(hash);
 			if(ret == -1) {
@@ -477,13 +477,64 @@ ERROR:
 
 int8_t encode_req_line(HttpEncoder encoder) {
 	HttpConnection conn = encoder->conn;
-	Buffer   dest = encoder->dest;
-	MemBlock temp = &encoder->temp;
+	Buffer         buf  = encoder->dest;
+	MemBlock       temp = &encoder->temp;
 	uint8_t  step = encoder->step;
 	uint32_t ret;
 	const char* str;
 	uint32_t    slen;
 
+	switch(step) {
+		case REQL_METHOD: goto ENTRY_METHOD;
+		case REQL_PATH:   goto ENTRY_PATH;
+		case REQL_VER:    goto ENTRY_VER;
+		case REQL_EOL:    goto ENTRY_EOL;
+	}
+ENTRY_METHOD:
+	str = METHOD_NAME[conn->code];
+	slen = strlen(str);
+	ret = Buffer_putArr(buf, (void*)str, 0, slen);
+	if(ret ^ slen) {
+		MemBlock_putStrN(temp, str + ret, slen - ret);
+		step = REQL_PATH;
+		goto PEND;
+	}
+	if(!Buffer_isFull(buf)) {
+		Buffer_put(buf, SP);
+	} else {
+		MemBlock_putChar(temp, SP);
+		step = REQL_PATH;
+		goto PEND;
+	}
+ENTRY_PATH:
+	str = (const char*)(conn->data + conn->str);
+	slen = strlen(str);
+	ret = Buffer_putArr(buf, (void*)str, 0, slen);
+	if(ret ^ slen) {
+		MemBlock_putStrN(temp, str + ret, slen - ret);
+		step = REQL_VER;
+		goto PEND;
+	}
+	if(!Buffer_isFull(buf)) {
+		Buffer_put(buf, SP);
+	} else {
+		MemBlock_putChar(temp, SP);
+		step = REQL_VER;
+		goto PEND;
+	}
+ENTRY_VER:
+	str = VERSION_NAME[conn->ver];
+	ret = Buffer_putArr(buf, (void*)str, 0, 8);
+	if(ret ^ 8) {
+		MemBlock_putStrN(temp, str + ret, 8 - ret);
+		step = REQL_EOL;
+		goto PEND;
+	}
+ENTRY_EOL:
+	ret = Buffer_putArr(buf, CRLF, 0, 2);
+	if(ret ^ 2) {
+		MemBlock_putStrN(temp, CRLF + ret, 2 - ret);
+	}
 DONE:
 	encoder->step = 0;
 	return EXIT_DONE;
@@ -736,7 +787,7 @@ ENTRY_INIT:
 ENTRY_STATUS:
 	switch(hint) {
 		case HTTP_REQ:
-			//ret = encode_req_line(encoder);
+			ret = encode_req_line(encoder);
 			break;
 		case HTTP_RES:
 			ret = encode_res_line(encoder);
