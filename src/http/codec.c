@@ -496,8 +496,8 @@ ENTRY_METHOD:
 	ret = Buffer_putArr(buf, (void*)str, 0, slen);
 	if(ret ^ slen) {
 		MemBlock_putStrN(temp, str + ret, slen - ret);
-		step = REQL_PATH;
-		goto PEND;
+		//step = REQL_PATH;
+		//goto PEND;
 	}
 	if(!Buffer_isFull(buf)) {
 		Buffer_put(buf, SP);
@@ -512,8 +512,8 @@ ENTRY_PATH:
 	ret = Buffer_putArr(buf, (void*)str, 0, slen);
 	if(ret ^ slen) {
 		MemBlock_putStrN(temp, str + ret, slen - ret);
-		step = REQL_VER;
-		goto PEND;
+		//step = REQL_VER;
+		//goto PEND;
 	}
 	if(!Buffer_isFull(buf)) {
 		Buffer_put(buf, SP);
@@ -564,8 +564,8 @@ ENTRY_VER:
 	ret = Buffer_putArr(dest, (void*)str, 0, 8);
 	if(ret ^ 8) {
 		MemBlock_putStrN(temp, str + ret, 8 - ret);
-		step = RESL_ST;
-		goto PEND;
+		//step = RESL_ST;
+		//goto PEND;
 	}
 	if(!Buffer_isFull(dest)) {
 		Buffer_put(dest, SP);
