@@ -45,7 +45,7 @@ PRIVATE inline void MemBlock_putChar(MemBlock m, char ch) {
 	m->len = len;
 }
 
-PRIVATE inline void MemBlock_putStrn(MemBlock m, const char* str, size_t l) {
+PRIVATE inline void MemBlock_putStrN(MemBlock m, const char* str, size_t l) {
 	uint32_t s = m->size;
 	uint32_t len = m->len;
 	uint32_t n;
@@ -177,10 +177,6 @@ enum {
 	FLD_DONE,
 };
 
-PRIVATE int8_t parse_req_line(HttpDecoder);
-PRIVATE int8_t parse_res_line(HttpDecoder);
-PRIVATE int8_t parse_fields(HttpDecoder);
-
 HttpDecoder HttpDecoder_init(HttpDecoder decoder, HttpConnection conn, Buffer src) {
 	decoder->phase = PHASE_INIT;
 	decoder->conn  = conn;
@@ -235,11 +231,14 @@ PRIVATE inline http_header_t find_header(int32_t hash) {
 }
 
 PRIVATE int8_t decode_req_line(HttpDecoder decoder) {
+	/* local variables for data inside HttpEncoder */
 	HttpConnection req = decoder->conn;
 	Buffer   buf  = decoder->src;
 	MemBlock temp = &decoder->temp;
+	/* should be written when PEND */
 	int32_t  hash = decoder->hash;
 	uint8_t  step = decoder->step;
+	/* temporary variables */
 	int8_t   ret;
 	char     ch;
 	
@@ -308,38 +307,38 @@ ENTRY_EOL:
 		goto PEND;
 	}
 	ch = Buffer_get(buf);
-	if(LIKELY(ch == LF)) {
-		goto FIN;
-	} else {
+	if(ch ^ LF) {
 		assert(0);
 		goto ERROR;
 	}
-
+DONE:
+	decoder->step = 0;
+	decoder->hash = 0;
+	return EXIT_DONE;
 PEND:
 	decoder->step = step;
 	decoder->hash = hash;
 	return EXIT_PEND;
-FIN:
-	decoder->step = 0;
-	decoder->hash = 0;
-	return EXIT_DONE;
 ERROR:
 	return EXIT_ERROR;
 }
 
 PRIVATE int8_t decode_fields(HttpDecoder decoder) {
+	/* local variable for data inside HttpDecoder */
 	HttpConnection conn = decoder->conn;
 	Buffer   buf  = decoder->src;
 	MemBlock temp = &decoder->temp;
+	/* variables below should be write when PEND */
 	int32_t  hash = decoder->hash;
 	uint8_t  step = decoder->step;
 	uint32_t fld  = decoder->fld;
 	uint8_t  is_ext = decoder->is_ext;
 	uint8_t  cursor = decoder->cursor;
+	/* temporary variable */
 	char     ch;
+	uint32_t begin, end;
 
-	//uint32_t start;
-
+	/* state entry navigation */
 	switch(step) {
 		case FLD_INIT: goto ENTRY_INIT;
 		case FLD_KEY:  goto ENTRY_KEY;
@@ -354,27 +353,29 @@ ENTRY_INIT:
 		goto PEND;
 	}
 	ch = Buffer_get(buf);
-	if(ch == CR) {
-		step = FLD_DONE;
-		goto ENTRY_DONE;
-	}
 	if(LIKELY(KEY_TOKEN_MAP[ch])) {
-		step = FLD_KEY;
 		HASH(hash, ch);
 		MemBlock_putChar(temp, ch);
+		step = FLD_KEY;
 		goto ENTRY_KEY;
+	} else if(ch == CR) {
+		step = FLD_DONE;
+		goto ENTRY_DONE;
 	} else {
 		assert(0);
 		goto ERROR;
 	}
 
 ENTRY_KEY:
+	begin = Buffer_getPos(buf);
 	while(!Buffer_isEnd(buf)) {
 		ch = Buffer_get(buf);
 		if(LIKELY(KEY_TOKEN_MAP[ch])) {
 			HASH(hash, ch);
-			MemBlock_putChar(temp, ch);
+			//MemBlock_putChar(temp, ch);
 		} else if(ch == COL) {
+			end = Buffer_getPos(buf) - 1;
+			MemBlock_putStrN(temp, Buffer_getPtr(buf) + begin, end - begin);
 			step = FLD_SEP;
 			goto ENTRY_SEP;
 		} else {
@@ -382,6 +383,8 @@ ENTRY_KEY:
 			goto ERROR;
 		}
 	}
+	end = Buffer_getPos(buf);
+	MemBlock_putStrN(temp, Buffer_getPtr(buf) + begin, end - begin);
 	goto PEND;
 
 ENTRY_SEP:
@@ -390,28 +393,30 @@ ENTRY_SEP:
 	}
 	ch = Buffer_get(buf);
 	if(LIKELY(ch == SP)) {
-		step = FLD_VAL;
 		hash &= 0x7FFFFFFF;
 		fld = find_header(hash);
 		if(LIKELY(fld ^ HH_INVALID)) {
 			MemBlock_rollback(temp);
 		} else {
 			fld = MemBlock_getStr(temp);
+			/* the header belongs to extra header */
 			is_ext = 1;
 		}
+		step = FLD_VAL;
 		goto ENTRY_VAL;
 	} else {
 		assert(0);
 		goto ERROR;
 	}
 ENTRY_VAL:
-	//start = Buffer_getPos(buf);
+	begin = Buffer_getPos(buf);
 	while(!Buffer_isEnd(buf)) {
 		ch = Buffer_get(buf);
 		if(LIKELY(VAL_TOKEN_MAP[ch])) {
-			MemBlock_putChar(temp, ch);
+			//MemBlock_putChar(temp, ch);
 		} else if(ch == CR) {
-			//MemBlock_putStrn(temp, Buffer_getPtr(buf) + start, Buffer_getPos(buf) - start - 1);
+			end = Buffer_getPos(buf) - 1;
+			MemBlock_putStrN(temp, Buffer_getPtr(buf) + begin, end - begin);
 			step = FLD_EOL;
 			goto ENTRY_EOL;
 		} else {
@@ -419,7 +424,8 @@ ENTRY_VAL:
 			goto ERROR;
 		}
 	}
-	//MemBlock_putStrn(temp, Buffer_getPtr(buf) + start, Buffer_getPos(buf) - start);
+	end = Buffer_getPos(buf);
+	MemBlock_putStrN(temp, Buffer_getPtr(buf) + begin, end - begin);
 	goto PEND;
 
 ENTRY_EOL:
@@ -430,6 +436,7 @@ ENTRY_EOL:
 	if(LIKELY(ch == LF)) {
 		step = FLD_INIT;
 		uint32_t v = MemBlock_getStr(temp);
+		/* save the current line of http header field */
 		if(LIKELY(!is_ext)) {
 			conn->fields[fld] = v;
 		} else {
@@ -449,12 +456,14 @@ ENTRY_DONE:
 		goto PEND;
 	}
 	ch = Buffer_get(buf);
-	if(ch == LF) {
-		goto FIN;
-	} else {
+	if(ch ^ LF) {
 		assert(0);
 		goto ERROR;
 	}
+DONE:
+	decoder->step = 0;
+	decoder->hash = 0;
+	return EXIT_DONE;
 PEND:
 	decoder->is_ext = is_ext;
 	decoder->cursor = cursor;
@@ -462,10 +471,6 @@ PEND:
 	decoder->step = step;
 	decoder->hash = hash;
 	return EXIT_PEND;
-FIN:
-	decoder->step = 0;
-	decoder->hash = 0;
-	return EXIT_DONE;
 ERROR:
 	return EXIT_ERROR;
 }
@@ -507,7 +512,7 @@ ENTRY_VER:
 	str = VERSION_NAME[conn->ver];
 	ret = Buffer_putArr(dest, (void*)str, 0, 8);
 	if(ret ^ 8) {
-		MemBlock_putStrn(temp, str + ret, 8 - ret);
+		MemBlock_putStrN(temp, str + ret, 8 - ret);
 		step = RESL_ST;
 		goto PEND;
 	}
@@ -523,14 +528,14 @@ ENTRY_ST:
 	slen = strlen(str);
 	ret = Buffer_putArr(dest, (void*)str, 0, slen);
 	if(ret ^ slen) {
-		MemBlock_putStrn(temp, str + ret, slen - ret);
+		MemBlock_putStrN(temp, str + ret, slen - ret);
 		step = RESL_EOL;
 		goto PEND;
 	}
 ENTRY_EOL:
 	ret = Buffer_putArr(dest, CRLF, 0, 2);
 	if(ret ^ 2) {
-		MemBlock_putStrn(temp, CRLF + ret, 2 - ret);
+		MemBlock_putStrN(temp, CRLF + ret, 2 - ret);
 	}
 DONE:
 	encoder->step = 0;
@@ -595,14 +600,14 @@ ENTRY_KEY:
 	}
 	ret = Buffer_putArr(dest, (void*)pkey, 0, klen);
 	if(ret ^ klen) {
-		MemBlock_putStrn(temp, pkey + ret, klen - ret);
+		MemBlock_putStrN(temp, pkey + ret, klen - ret);
 		step = FLD_SEP;
 		goto PEND;
 	}
 ENTRY_SEP:
 	ret = Buffer_putArr(dest, SEP, 0, 2);
 	if(ret ^ 2) {
-		MemBlock_putStrn(temp, SEP + ret, 2 - ret);
+		MemBlock_putStrN(temp, SEP + ret, 2 - ret);
 		step = FLD_VAL;
 		goto PEND;
 	}
@@ -617,7 +622,7 @@ ENTRY_VAL:
 	vlen = strlen(pval);
 	ret = Buffer_putArr(dest, (void*)pval, 0, vlen);
 	if(ret ^ vlen) {
-		MemBlock_putStrn(temp, pval + ret, vlen - ret);
+		MemBlock_putStrN(temp, pval + ret, vlen - ret);
 		step = FLD_EOL;
 		goto PEND;
 	}
@@ -625,7 +630,7 @@ ENTRY_EOL:
 	++cursor;
 	ret = Buffer_putArr(dest, CRLF, 0, 2);
 	if(ret ^ 2) {
-		MemBlock_putStrn(temp, CRLF + ret, 2 - ret);
+		MemBlock_putStrN(temp, CRLF + ret, 2 - ret);
 		step = FLD_INIT;
 		goto PEND;
 	}
@@ -633,7 +638,7 @@ ENTRY_EOL:
 ENTRY_DONE:
 	ret = Buffer_putArr(dest, CRLF, 0, 2);
 	if(ret ^ 2) {
-		MemBlock_putStrn(temp, CRLF + ret, 2 - ret);
+		MemBlock_putStrN(temp, CRLF + ret, 2 - ret);
 		goto DONE;
 	}
 DONE:

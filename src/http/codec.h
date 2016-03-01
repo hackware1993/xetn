@@ -26,26 +26,25 @@ typedef struct mem_block {
 } mem_block_t, *MemBlock;
 
 typedef struct http_decoder {
-	Buffer       src;
-	mem_block_t  temp;
 	HttpConnection conn;
-	phase_t      phase;
-	uint8_t      step;
-	uint8_t      is_ext;
-	uint8_t      cursor;
-	uint32_t     fld;
-	int32_t      hash;
+	Buffer      src;
+	mem_block_t temp;
+	phase_t     phase;
+	uint8_t     step;
+	uint8_t     is_ext;
+	uint8_t     cursor;
+	uint32_t    fld;
+	int32_t     hash;
 } http_decoder_t, *HttpDecoder;
 
 typedef struct http_encoder {
-	Buffer       dest;
-	mem_block_t  temp;
 	HttpConnection conn;
-	phase_t      phase;
-	uint8_t      step;
-	uint8_t      is_ext;
-	uint8_t      cursor;
-
+	Buffer      dest;
+	mem_block_t temp;
+	phase_t     phase;
+	uint8_t     step;
+	uint8_t     is_ext;
+	uint8_t     cursor;
 } http_encoder_t, *HttpEncoder;
 
 HttpEncoder HttpEncoder_init(HttpEncoder, HttpConnection, Buffer);
