@@ -9,10 +9,10 @@
 
 #define PRIVATE static
 
-#define SP  ' '
-#define COL ':'
-#define CR  '\r'
-#define LF  '\n'
+#define SP   ' '
+#define COL  ':'
+#define CR   '\r'
+#define LF   '\n'
 #define CRLF "\r\n"
 #define SEP  ": "
 
@@ -168,7 +168,7 @@ enum {
 };
 
 enum {
-	RESL_VER, RESL_ST, RESL_EOL,
+	RESL_VER, RESL_ST, RESL_DESC, RESL_EOL,
 };
 
 enum {
@@ -185,6 +185,9 @@ HttpDecoder HttpDecoder_init(HttpDecoder decoder, HttpConnection conn, Buffer sr
 	decoder->is_ext = 0;
 	decoder->cursor = HTTP_HEADER_NUM;
 	MemBlock_init(&decoder->temp, 1024);
+	/* keep 0 as the default index which represents NULL */
+	decoder->temp.len = 1;
+	decoder->temp.last = 1;
 	return decoder;
 }
 
@@ -228,6 +231,96 @@ PRIVATE inline http_header_t find_header(int32_t hash) {
 		++i;
 	}
 	return HH_INVALID;
+}
+
+PRIVATE int8_t decode_res_line(HttpDecoder decoder) {
+	/* local variables for data inside HttpEncoder */
+	HttpConnection res = decoder->conn;
+	Buffer   buf  = decoder->src;
+	MemBlock temp = &decoder->temp;
+	/* should be written when PEND */
+	int32_t  hash = decoder->hash;
+	uint8_t  step = decoder->step;
+	/* temporary variables */
+	int16_t   ret;
+	char     ch;
+	uint32_t begin, end;
+	
+	/* state entry navigation */
+	switch(step) {
+		case RESL_VER:  goto ENTRY_VER;
+		case RESL_ST:   goto ENTRY_ST;
+		case RESL_DESC: goto ENTRY_DESC;
+		case RESL_EOL:  goto ENTRY_EOL;
+	}
+ENTRY_VER:
+	while(!Buffer_isEnd(buf)) {
+		ch = Buffer_get(buf);
+		if(LIKELY(ch ^ SP)) {
+			HASH(hash, ch);
+		} else {
+			hash &= 0x7FFFFFFF;
+			ret = find_version(hash);
+			if(ret == -1) {
+				assert(0);
+				goto ERROR;
+			}
+			res->ver = ret;
+			step = RESL_ST;
+			goto ENTRY_ST;
+		}
+	}
+	goto PEND;
+ENTRY_ST:
+	/* let atoi check the validity of status code */
+	while(!Buffer_isEnd(buf)) {
+		ch = Buffer_get(buf);
+		if(ch ^ SP) {
+			MemBlock_putChar(temp, ch);
+		} else {
+			MemBlock_putChar(temp, '\0');
+			ret = atoi(temp->ptr + temp->last);
+			ret = HttpStatus_find(ret);
+			if(ret == ST_INVALID) {
+				assert(0);
+				goto ERROR;
+			}
+			MemBlock_rollback(temp);
+			res->code = ret;
+			step = RESL_DESC;
+			goto ENTRY_DESC;
+		}
+	}
+	goto PEND;
+ENTRY_DESC:
+	/* skip all description of status code */
+	while(!Buffer_isEnd(buf)) {
+		ch = Buffer_get(buf);
+		if(ch == CR) {
+			step = RESL_EOL;
+			goto ENTRY_EOL;
+		}
+	}
+	goto PEND;
+ENTRY_EOL:
+	if(UNLIKELY(Buffer_isEnd(buf))) {
+		goto PEND;
+	}
+	ch = Buffer_get(buf);
+	if(ch ^ LF) {
+		assert(0);
+		goto ERROR;
+	}
+DONE:
+	decoder->step = 0;
+	decoder->hash = 0;
+	return EXIT_DONE;
+PEND:
+	decoder->step = step;
+	decoder->hash = hash;
+	return EXIT_PEND;
+ERROR:
+	return EXIT_ERROR;
 }
 
 PRIVATE int8_t decode_req_line(HttpDecoder decoder) {
@@ -705,6 +798,7 @@ ERROR:
 }
 
 int8_t HttpDecoder_decodeConnection(HttpDecoder decoder, hint_t hint) {
+	int8_t (*decode_line)(HttpDecoder) = NULL;
 	int8_t ret;
 	switch(decoder->phase) {
 		case PHASE_INIT:   goto ENTRY_INIT;
@@ -716,14 +810,12 @@ ENTRY_INIT:
 	decoder->step = 0;
 	decoder->phase = PHASE_STATUS;
 ENTRY_STATUS:
-	switch(hint) {
-		case HTTP_REQ:
-			ret = decode_req_line(decoder);
-			break;
-		case HTTP_RES:
-			//ret = decode_res_line(decoder);
-			break;
+	if(hint ^ HTTP_RES) {
+		decode_line = decode_req_line;
+	} else {
+		decode_line = decode_res_line;
 	}
+	ret = decode_line(decoder);
 	switch(ret) {
 		case EXIT_ERROR: goto ERROR;
 		case EXIT_PEND:  goto PEND;
