@@ -25,9 +25,9 @@ typedef struct mem_block {
 	uint32_t size;
 } mem_block_t, *MemBlock;
 
-typedef struct http_decoder {
+typedef struct http_codec {
 	HttpConnection conn;
-	Buffer      src;
+	Buffer      buf;
 	mem_block_t temp;
 	phase_t     phase;
 	uint8_t     step;
@@ -35,28 +35,15 @@ typedef struct http_decoder {
 	uint8_t     cursor;
 	uint32_t    fld;
 	int32_t     hash;
-} http_decoder_t, *HttpDecoder;
+} http_codec_t, *HttpCodec;
 
-typedef struct http_encoder {
-	HttpConnection conn;
-	Buffer      dest;
-	mem_block_t temp;
-	phase_t     phase;
-	uint8_t     step;
-	uint8_t     is_ext;
-	uint8_t     cursor;
-} http_encoder_t, *HttpEncoder;
+HttpCodec HttpCodec_init(HttpCodec, HttpConnection, Buffer);
+void HttpCodec_reset(HttpCodec);
+void HttpCodec_close(HttpCodec);
 
-HttpEncoder HttpEncoder_init(HttpEncoder, HttpConnection, Buffer);
-HttpDecoder HttpDecoder_init(HttpDecoder, HttpConnection, Buffer);
-void HttpEncoder_reset(HttpEncoder);
-void HttpDecoder_reset(HttpDecoder);
-void HttpEncoder_close(HttpEncoder);
-void HttpDecoder_close(HttpDecoder);
-
-typedef enum hint {
+typedef enum http_type {
 	HTTP_REQ, HTTP_RES,
-} hint_t;
+} http_type_t;
 
 /**
  * Return Value:
@@ -64,7 +51,7 @@ typedef enum hint {
  *	 EXIT_PEND : 0
  *	 EXIT_DONE : 1
  */
-int8_t HttpDecoder_decodeConnection(HttpDecoder, hint_t);
-int8_t HttpEncoder_encodeConnection(HttpEncoder, hint_t);
+int8_t HttpCodec_decode(HttpCodec, http_type_t);
+int8_t HttpCodec_encode(HttpCodec, http_type_t);
 
 #endif // _HTTP_PARSER_H_

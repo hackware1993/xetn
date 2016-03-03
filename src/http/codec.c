@@ -177,35 +177,28 @@ enum {
 	FLD_DONE,
 };
 
-HttpDecoder HttpDecoder_init(HttpDecoder decoder, HttpConnection conn, Buffer src) {
-	decoder->phase = PHASE_INIT;
-	decoder->conn  = conn;
-	decoder->src   = src;
-	decoder->hash  = 0;
-	decoder->is_ext = 0;
-	decoder->cursor = HTTP_HEADER_NUM;
-	MemBlock_init(&decoder->temp, 1024);
+HttpCodec HttpCodec_init(HttpCodec codec, HttpConnection conn, Buffer buf) {
+	codec->phase = PHASE_INIT;
+	codec->conn  = conn;
+	codec->buf   = buf;
+	codec->hash  = 0;
+	codec->is_ext = 0;
+	MemBlock_init(&codec->temp, 1024);
 	/* keep 0 as the default index which represents NULL */
-	decoder->temp.len = 1;
-	decoder->temp.last = 1;
-	return decoder;
+	codec->temp.len = 1;
+	codec->temp.last = 1;
+	return codec;
 }
 
+/*
 HttpEncoder HttpEncoder_init(HttpEncoder encoder, HttpConnection conn, Buffer dest) {
-	encoder->phase = PHASE_INIT;
-	encoder->conn = conn;
-	encoder->dest = dest;
-	encoder->step = 0;
-	encoder->is_ext = 0;
-	encoder->cursor = 0;
-	MemBlock_init(&encoder->temp, 256);
 	return encoder;
 }
+*/
 
-void HttpDecoder_close(HttpDecoder decoder) {
-	MemBlock_free(&decoder->temp);
+void HttpCodec_close(HttpCodec codec) {
+	MemBlock_free(&codec->temp);
 }
-
 
 PRIVATE inline int8_t find_method(int32_t hash) {
 	HashPair p = (HashPair)(METHOD_HASHS + hash % 14);
@@ -233,10 +226,10 @@ PRIVATE inline http_header_t find_header(int32_t hash) {
 	return HH_INVALID;
 }
 
-PRIVATE int8_t decode_res_line(HttpDecoder decoder) {
+PRIVATE int8_t decode_res_line(HttpCodec decoder) {
 	/* local variables for data inside HttpEncoder */
 	HttpConnection res = decoder->conn;
-	Buffer   buf  = decoder->src;
+	Buffer   buf  = decoder->buf;
 	MemBlock temp = &decoder->temp;
 	/* should be written when PEND */
 	int32_t  hash = decoder->hash;
@@ -323,10 +316,10 @@ ERROR:
 	return EXIT_ERROR;
 }
 
-PRIVATE int8_t decode_req_line(HttpDecoder decoder) {
+PRIVATE int8_t decode_req_line(HttpCodec decoder) {
 	/* local variables for data inside HttpEncoder */
 	HttpConnection req = decoder->conn;
-	Buffer   buf  = decoder->src;
+	Buffer   buf  = decoder->buf;
 	MemBlock temp = &decoder->temp;
 	/* should be written when PEND */
 	int32_t  hash = decoder->hash;
@@ -416,10 +409,10 @@ ERROR:
 	return EXIT_ERROR;
 }
 
-PRIVATE int8_t decode_fields(HttpDecoder decoder) {
+PRIVATE int8_t decode_fields(HttpCodec decoder) {
 	/* local variable for data inside HttpDecoder */
 	HttpConnection conn = decoder->conn;
-	Buffer   buf  = decoder->src;
+	Buffer   buf  = decoder->buf;
 	MemBlock temp = &decoder->temp;
 	/* variables below should be write when PEND */
 	int32_t  hash = decoder->hash;
@@ -568,9 +561,9 @@ ERROR:
 	return EXIT_ERROR;
 }
 
-int8_t encode_req_line(HttpEncoder encoder) {
+int8_t encode_req_line(HttpCodec encoder) {
 	HttpConnection conn = encoder->conn;
-	Buffer         buf  = encoder->dest;
+	Buffer         buf  = encoder->buf;
 	MemBlock       temp = &encoder->temp;
 	uint8_t  step = encoder->step;
 	uint32_t ret;
@@ -638,9 +631,9 @@ ERROR:
 	return EXIT_ERROR;
 }
 
-int8_t encode_res_line(HttpEncoder encoder) {
+int8_t encode_res_line(HttpCodec encoder) {
 	HttpConnection conn = encoder->conn;
-	Buffer   dest = encoder->dest;
+	Buffer   dest = encoder->buf;
 	MemBlock temp = &encoder->temp;
 	uint8_t  step = encoder->step;
 	uint32_t ret;
@@ -691,9 +684,9 @@ ERROR:
 	return EXIT_ERROR;
 }
 
-int8_t encode_fields(HttpEncoder encoder) {
+int8_t encode_fields(HttpCodec encoder) {
 	HttpConnection conn = encoder->conn;
-	Buffer   dest = encoder->dest;
+	Buffer   dest = encoder->buf;
 	MemBlock temp = &encoder->temp;
 
 	uint8_t step = encoder->step;
@@ -797,8 +790,8 @@ ERROR:
 	return EXIT_ERROR;
 }
 
-int8_t HttpDecoder_decodeConnection(HttpDecoder decoder, hint_t hint) {
-	int8_t (*decode_line)(HttpDecoder) = NULL;
+int8_t HttpCodec_decode(HttpCodec decoder, http_type_t type) {
+	int8_t (*decode_line)(HttpCodec) = NULL;
 	int8_t ret;
 	switch(decoder->phase) {
 		case PHASE_INIT:   goto ENTRY_INIT;
@@ -807,10 +800,11 @@ int8_t HttpDecoder_decodeConnection(HttpDecoder decoder, hint_t hint) {
 		case PHASE_DONE:   return EXIT_DONE;
 	}
 ENTRY_INIT:
+	decoder->cursor = HTTP_HEADER_NUM;
 	decoder->step = 0;
 	decoder->phase = PHASE_STATUS;
 ENTRY_STATUS:
-	if(hint ^ HTTP_RES) {
+	if(type ^ HTTP_RES) {
 		decode_line = decode_req_line;
 	} else {
 		decode_line = decode_res_line;
@@ -841,12 +835,13 @@ DONE:
 	return EXIT_DONE;
 }
 
-int8_t HttpEncoder_encodeConnection(HttpEncoder encoder, hint_t hint) {
-	Buffer   dest = encoder->dest;
+int8_t HttpCodec_encode(HttpCodec encoder, http_type_t type) {
+	Buffer   dest = encoder->buf;
 	MemBlock temp = &encoder->temp;
 	uint32_t len = temp->len;
 	uint32_t last = temp->last;
 	int32_t ret;
+	int8_t (*encode_line) (HttpCodec) = NULL;
 
 	/* check the temp zone every time calling this function */
 	/* if there exist data inside temp, move it to dest buffer */
@@ -874,17 +869,16 @@ int8_t HttpEncoder_encodeConnection(HttpEncoder encoder, hint_t hint) {
 	}
 
 ENTRY_INIT:
+	encoder->cursor = 0;
 	encoder->step = 0;
 	encoder->phase = PHASE_STATUS;
 ENTRY_STATUS:
-	switch(hint) {
-		case HTTP_REQ:
-			ret = encode_req_line(encoder);
-			break;
-		case HTTP_RES:
-			ret = encode_res_line(encoder);
-			break;
+	if(type ^ HTTP_REQ) {
+		encode_line = encode_res_line;
+	} else {
+		encode_line = encode_req_line;
 	}
+	ret = encode_line(encoder);
 	if(ret == EXIT_DONE){
 		encoder->phase = PHASE_FIELD;
 		if(temp->len) {
