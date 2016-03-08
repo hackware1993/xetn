@@ -14,11 +14,10 @@ typedef enum pollopt {
 
 #define WATCHER_MAX  65536
 #define WATCHER_INIT 4096
-#define MAXEVENT     64
 
 #include "pollimpl/epoll.h"
 
-PRIVATE void __auto_append(Reactor re, fd_t fd) {
+PRIVATE inline void __auto_append(Reactor re, fd_t fd) {
 	uint32_t len = re->wl;
 	while(len <= fd) {
 		len *= 2;
@@ -32,6 +31,11 @@ PRIVATE void __auto_append(Reactor re, fd_t fd) {
 
 /* public function for reactor & watcher */
 Reactor Reactor_init(Reactor re) {
+	int i;
+	for(i = 0; i < MAXEVENT; ++i) {
+		re->io_list[i] = NULL;
+		re->er_list[i] = NULL;
+	}
 	re->wl = WATCHER_INIT;
 	re->ws = (Watcher*)calloc(WATCHER_INIT, sizeof(Watcher));
 	/* create internal poll handler */
@@ -56,70 +60,74 @@ void Reactor_close(Reactor re) {
 	/* reactor won't free re itself */
 }
 
+void Reactor_loopOnce(Reactor re, int32_t to) {
+	Watcher wt = NULL;
+	Watcher* pios = re->io_list;
+	Watcher* pers = re->er_list;
+	uint8_t ios_len = 0, err_len = 0;
+	poll_wait(&re->poll, to, pios, &ios_len, pers, &err_len);
+	/* error watcher has the highest priority */
+	for(int i = 0; i < err_len; ++i) {
+		wt = pers[i];
+		wt->event = EV_ERROR;
+		wt->onError(wt);
+	}
+
+	for(int i = 0; i < ios_len; ++i) {
+		wt = pios[i];
+		wt->onProcess(wt);
+	}
+}
+
+void Reactor_loop(Reactor re, int32_t to) {
+	Watcher wt = NULL;
+	Watcher* pios = re->io_list;
+	Watcher* pers = re->er_list;
+	uint8_t ios_len = 0, err_len = 0;
+	while(1) {
+		poll_wait(&re->poll, to, pios, &ios_len, pers, &err_len);
+		/* error watcher has the highest priority */
+		for(int i = 0; i < err_len; ++i) {
+			wt = pers[i];
+			wt->event = EV_ERROR;
+			wt->onError(wt);
+		}
+
+		for(int i = 0; i < ios_len; ++i) {
+			wt = pios[i];
+			wt->onProcess(wt);
+		}
+	}
+}
+
 void Reactor_register(Reactor re, Watcher wt) {
-	int fd = wt->handler.fileno;
+	int     fd = wt->handler.fileno;
+	if(fd >= re->wl) {
+		__auto_append(re, fd);
+	}
 	wt->host = re;
 	re->ws[fd] = wt;
 	poll_ctl(&re->poll, P_ADD, (Handler)wt);
 }
 
 void Reactor_unregister(Reactor re, Watcher wt) {
-	int fd = wt->handler.fileno;
-	wt->host = NULL;
+	int     fd = wt->handler.fileno;
+	wt->host = re;
 	re->ws[fd] = NULL;
 	poll_ctl(&re->poll, P_DEL, (Handler)wt);
 }
 
-void Reactor_loopOnce(Reactor re, int32_t to) {
-	Watcher wt;
-	fd_t* p;
-	poll_wait(&re->poll, to, re->io_list, re->er_list);
-	/* error watcher has the highest priority */
-	p = re->er_list;
-	while(*p != -1) {
-		wt = re->ws[*p];
-		wt->event = EV_ERROR;
-		wt->onError(wt);
-		*p = -1;
-	}
-
-	p = re->io_list;
-	while(*p != -1) {
-		wt = re->ws[*p];
-		wt->onProcess(wt);
-		*p = -1;
-	}
-}
-
-void Reactor_loop(Reactor re, int32_t to) {
-	Watcher wt;
-	fd_t* p;
-	while(1) {
-		poll_wait(&re->poll, to, re->io_list, re->er_list);
-		/* error watcher has the highest priority */
-		p = re->er_list;
-		while(*p != -1) {
-			wt = re->ws[*p];
-			wt->event = EV_ERROR;
-			wt->onError(wt);
-			*p = -1;
-		}
-
-		p = re->io_list;
-		while(*p != -1) {
-			wt = re->ws[*p];
-			wt->onProcess(wt);
-			*p = -1;
-		}
-	}
+void Watcher_close(Watcher wt) {
+	Watcher_unregisterSelf(wt);
+	Handler_close(&wt->handler);
+	wt->onClose(wt);
 }
 
 void Watcher_modEvent(Watcher wt, event_t ev) {
 	if(Watcher_getEvent(wt) == ev) {
 		return;
 	}
-	handler_t poll = wt->host->poll;
+	Handler poll = &wt->host->poll;
 	wt->event = ev;
-	poll_ctl(&poll, P_MOD, &wt->handler);
+	poll_ctl(poll, P_MOD, &wt->handler);
 }
-

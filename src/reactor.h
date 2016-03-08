@@ -4,6 +4,8 @@
 #include <stdint.h>
 #include "handler.h"
 
+#define MAXEVENT 64
+
 /* INFOMATION: only epoll is supported now */
 
 typedef enum wtype {
@@ -43,9 +45,9 @@ typedef struct reactor {
 	Watcher* ws;
 	/* length of watcher array */
 	uint32_t  wl;
-	int32_t   errno;
-	fd_t      io_list[64];
-	fd_t      er_list[64];
+	int32_t   err_code;
+	Watcher   io_list[MAXEVENT];
+	Watcher   er_list[MAXEVENT];
 } reactor_t, *Reactor;
 
 #define Watcher_init(w, t, h, e) \
@@ -53,12 +55,26 @@ typedef struct reactor {
 	(w)->handler = *(h);         \
 	(w)->event = (e)
 
+#define Watcher_bindHost(w, h) \
+	(w)->host = (h)
+#define Watcher_bindOnProcess(w, fn) \
+	(w)->onProcess = (fn)
+#define Watcher_bindOnError(w, fn) \
+	(w)->onError = (fn)
+#define Watcher_bindOnClose(w, fn) \
+	(w)->onClose = (fn)
+
 #define Watcher_getEvent(w) ((w)->event)
 #define Watcher_getType(w)  ((w)->type)
 #define Watcher_getHost(w)  ((w)->host)
-#define Watcher_hasHost(w)  ((w)->host ^= NULL)
+#define Watcher_hasHost(w)  ((w)->host != NULL)
+#define Watcher_resigterSelf(wt) \
+	Reactor_register((wt)->host, (wt))
+#define Watcher_unregisterSelf(wt) \
+	Reactor_unregister((wt)->host, (wt))
 
 void Watcher_modEvent(Watcher, event_t);
+void Watcher_close(Watcher);
 
 Reactor Reactor_init(Reactor);
 void    Reactor_close(Reactor);

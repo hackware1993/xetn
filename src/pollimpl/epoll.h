@@ -20,20 +20,21 @@ PRIVATE int poll_ctl(Handler poll, pollopt_t opt, Handler handler) {
 	struct epoll_event* pev = NULL;
 	fd_t fd = handler->fileno;
 	switch(opt) {
-		case P_ADD: op = EPOLL_CTL_ADD; goto OP_MOD;
-		case P_MOD: op = EPOLL_CTL_MOD; goto OP_MOD;
-		case P_DEL: op = EPOLL_CTL_DEL; goto OP_DEL;
+		case P_ADD: op = EPOLL_CTL_ADD; break;
+		case P_MOD: op = EPOLL_CTL_MOD; break;
+		case P_DEL: op = EPOLL_CTL_DEL; goto ENTRY_DEL;
 	}
-OP_MOD:
 	switch(wt->event) {
-		case EV_READ:  events |= EPOLLIN; break;
+		case EV_READ:  events |= EPOLLIN;  break;
 		case EV_WRITE: events |= EPOLLOUT; break;
 	}
 	struct epoll_event ev;
 	ev.events = events;
-	ev.data.fd = fd;
+	//ev.data.fd = fd;
+	/* use the pointer to Watcher directly */
+	ev.data.ptr = wt;
 	pev = &ev;
-OP_DEL:
+ENTRY_DEL:
 	stat = epoll_ctl(poll->fileno, op, fd, pev);
 	if(stat == -1) {
 		return errno;
@@ -41,7 +42,8 @@ OP_DEL:
 	return 0;
 }
 
-PRIVATE int poll_wait(Handler poll, int32_t to, fd_t* ios, fd_t* errs) {
+PRIVATE int poll_wait(Handler poll, int32_t to, 
+		Watcher* ios, uint8_t* ios_len, Watcher* errs, uint8_t* err_len) {
 	struct epoll_event events[MAXEVENT];
 	int32_t count = epoll_wait(poll->fileno, events, MAXEVENT, to);
 	if(count == -1) {
@@ -49,14 +51,16 @@ PRIVATE int poll_wait(Handler poll, int32_t to, fd_t* ios, fd_t* errs) {
 	}
 	uint8_t io = 0, ie = 0;
 	struct epoll_event* pc;
-	struct epoll_event* pe = events + MAXEVENT;
+	struct epoll_event* pe = events + count;
 	for(pc = events; pc < pe; ++pc) {
 		if(pc->events & (EPOLLERR | EPOLLHUP)) {
-			errs[ie++] = pc->data.fd;
+			errs[ie++] = (Watcher)pc->data.ptr;
 		} else if(pc->events & (EPOLLIN | EPOLLOUT)) {
-			ios[io++] = pc->data.fd;
+			ios[io++] = (Watcher)pc->data.ptr;
 		}
 	}
+	*ios_len = io;
+	*err_len = ie;
 	return 0;
 }
 
