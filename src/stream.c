@@ -4,11 +4,64 @@
 #include <sys/types.h>
 #include <unistd.h>
 #include <errno.h>
+#include <sys/select.h>
+#include <sys/time.h>
+#include <errno.h>
 
-iostate_t stream_read(Handler handler, Buffer buf) {
+iostate_t Stream_timedRead(Handler handler, Buffer buf, int32_t to) {
+	struct timeval* timeout = NULL;
+	struct timeval tv;
+	if(to >= 0) {
+		int sec  = to / 1000;
+		int usec = (to - sec) * 1000;
+		tv.tv_sec  = sec;
+		tv.tv_usec = usec;
+		timeout = &tv;
+	}
+	int fd = handler->fileno;
+	int ret;
+	fd_set set;
+	FD_ZERO(&set);
+	FD_SET(fd, &set);
+	ret = select(fd + 1, &set, NULL, NULL, timeout);
+	if(ret == 0) {
+		errno = ETIMEDOUT;
+		return S_ERR;
+	} else if(ret == -1) {
+		return S_ERR;
+	}
+	return Stream_read(handler, buf);
+}
+
+iostate_t Stream_timedWrite(Handler handler, Buffer buf, int32_t to) {
+	struct timeval* timeout = NULL;
+	struct timeval tv;
+	if(to >= 0) {
+		int sec  = to / 1000;
+		int usec = (to - sec) * 1000;
+		tv.tv_sec  = sec;
+		tv.tv_usec = usec;
+		timeout = &tv;
+	}
+	int fd = handler->fileno;
+	int ret;
+	fd_set set;
+	FD_ZERO(&set);
+	FD_SET(fd, &set);
+	ret = select(fd + 1, NULL, &set, NULL, timeout);
+	if(ret == 0) {
+		errno = ETIMEDOUT;
+		return S_ERR;
+	} else if(ret == -1) {
+		return S_ERR;
+	}
+	return Stream_write(handler, buf);
+}
+
+iostate_t Stream_read(Handler handler, Buffer buf) {
 	fd_t fd = handler->fileno;
-	char* ptr = buffer_get_ptr(buf) + buffer_get_len(buf);
-	size_t nleft = buffer_get_lim(buf) - buffer_get_len(buf);
+	char* ptr = Buffer_getPtr(buf) + Buffer_getLen(buf);
+	size_t nleft = Buffer_getLim(buf) - Buffer_getLen(buf);
 	ssize_t nread = 0;
 	while(nleft > 0) {
 		if((nread = read(fd, ptr, nleft)) < 0) {
@@ -17,26 +70,26 @@ iostate_t stream_read(Handler handler, Buffer buf) {
 					nread = 0;
 					break;
 				case EAGAIN:
-					buffer_set_len(buf, buffer_get_lim(buf) - nleft);
+					Buffer_setLen(buf, Buffer_getLim(buf) - nleft);
 					return S_PEND;
 				default:
 					return S_ERR;
 			}
 		} else if(nread == 0) {
-			buffer_set_len(buf, buffer_get_lim(buf) - nleft);
+			Buffer_setLen(buf, Buffer_getLim(buf) - nleft);
 			return S_FIN;
 		}
 		ptr += nread;
 		nleft -= nread;
 	}
-	buffer_set_len(buf, buffer_get_lim(buf));
+	Buffer_setLen(buf, Buffer_getLim(buf));
 	return S_FULL;
 }
 
-iostate_t stream_write(Handler handler, Buffer buf) {
+iostate_t Stream_write(Handler handler, Buffer buf) {
 	fd_t fd = handler->fileno;
-	char* ptr = buffer_get_ptr(buf) + buffer_get_pos(buf);
-	size_t nleft = buffer_get_len(buf) - buffer_get_pos(buf);
+	char* ptr = Buffer_getPtr(buf) + Buffer_getPos(buf);
+	size_t nleft = Buffer_getLen(buf) - Buffer_getPos(buf);
 	ssize_t nwritten = 0;
 	while(nleft > 0) {
 		if((nwritten = write(fd, ptr, nleft)) < 0) {
@@ -45,7 +98,7 @@ iostate_t stream_write(Handler handler, Buffer buf) {
 					nwritten = 0;
 					break;
 				case EAGAIN:
-					buffer_set_pos(buf, buffer_get_len(buf) - nleft);
+					Buffer_setPos(buf, Buffer_getLen(buf) - nleft);
 					return S_PEND;
 				default:
 					return S_ERR;
@@ -54,6 +107,6 @@ iostate_t stream_write(Handler handler, Buffer buf) {
 		ptr += nwritten;
 		nleft -= nwritten;
 	}
-	buffer_set_pos(buf, buffer_get_len(buf));
+	Buffer_setPos(buf, Buffer_getLen(buf));
 	return S_FIN;
 }

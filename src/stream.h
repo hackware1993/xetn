@@ -13,15 +13,9 @@ typedef enum iostate {
 } iostate_t;
 
 /* iostream for common handler */
-iostate_t stream_read(Handler, Buffer);
-
-iostate_t stream_write(Handler, Buffer);
-
-///* iostream for common handler with internal buffer */
-//iostate_t stream_buffered_read(handler_t, buffer_t);
-//
-//iostate_t stream_buffered_write(handler_t, buffer_t);
-//
-//iostate_t stream_flush_buffer(handler_t);
+iostate_t Stream_read(Handler, Buffer);
+iostate_t Stream_write(Handler, Buffer);
+iostate_t Stream_timedRead(Handler, Buffer, int32_t);
+iostate_t Stream_timedWrite(Handler, Buffer, int32_t);
 
 #endif // _STREAM_H_
