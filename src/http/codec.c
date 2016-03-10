@@ -19,8 +19,6 @@
 #define HASH(hash, ch) \
 	(hash) = ((hash) << 7) + ((hash) << 1) + (hash) + (ch)
 
-#define MAGNUM 237
-
 #define MemBlock_free(m) free((m)->ptr)
 #define MemBlock_rollback(m) (m)->len = (m)->last
 
@@ -105,7 +103,7 @@ PRIVATE inline int32_t BKDRHash(const char* str) {
 }
 
 http_header_t HttpHeader_find(uint32_t index, uint32_t hash) {
-	uint64_t* i = HEADER_HASHS + index;
+	uint64_t* i = HEADER_HASH + index;
 	while(*i) {
 		HashPair p = (HashPair)i;
 		if((p->hash ^ hash) == 0) {
@@ -201,27 +199,23 @@ void HttpCodec_close(HttpCodec codec) {
 }
 
 PRIVATE inline int8_t find_method(int32_t hash) {
-	HashPair p = (HashPair)(METHOD_HASHS + hash % 14);
+	HashPair p = (HashPair)(METHOD_HASH + hash % 14);
 	if((p->hash ^ hash) == 0) {
 		return p->id;
 	}
 	return -1;
 }
 PRIVATE inline int8_t find_version(int32_t hash) {
-	HashPair p = (HashPair)(VERSION_HASHS + hash % 4);
+	HashPair p = (HashPair)(VERSION_HASH + hash % 4);
 	if((p->hash ^ hash) == 0) {
 		return p->id;
 	}
 	return -1;
 }
-PRIVATE inline http_header_t find_header(int32_t hash) {
-	uint64_t* i = HEADER_HASHS + hash % MAGNUM;
-	while(*i) {
-		HashPair p = (HashPair)i;
-		if((p->hash ^ hash) == 0) {
-			return p->id;
-		}
-		++i;
+PRIVATE inline http_header_t find_header(uint32_t hash) {
+	uint32_t index = hash % MAGNUM;
+	if((HEADER_HASH[index] ^ hash) == 0) {
+		return HEADER_INDEX[index];
 	}
 	return HH_INVALID;
 }
@@ -415,7 +409,7 @@ PRIVATE int8_t decode_fields(HttpCodec decoder) {
 	Buffer   buf  = decoder->buf;
 	MemBlock temp = &decoder->temp;
 	/* variables below should be write when PEND */
-	int32_t  hash = decoder->hash;
+	uint32_t hash = decoder->hash;
 	uint8_t  step = decoder->step;
 	uint32_t fld  = decoder->fld;
 	uint8_t  is_ext = decoder->is_ext;
@@ -479,7 +473,6 @@ ENTRY_SEP:
 	}
 	ch = Buffer_get(buf);
 	if(LIKELY(ch == SP)) {
-		hash &= 0x7FFFFFFF;
 		fld = find_header(hash);
 		if(LIKELY(fld ^ HH_INVALID)) {
 			MemBlock_rollback(temp);
@@ -728,8 +721,8 @@ ENTRY_INIT:
 	goto ENTRY_DONE;
 ENTRY_KEY:
 	if(LIKELY(!is_ext)) {
-		pkey = HEADER_NAMES[cursor];
-		klen = HEADER_LENS[cursor];
+		pkey = HEADER_NAME[cursor];
+		klen = HEADER_LEN[cursor];
 	} else {
 		ExtraField ef = (ExtraField)(data + fields[cursor]);
 		pkey = (const char*)(data + ef->key);

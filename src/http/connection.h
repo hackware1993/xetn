@@ -44,7 +44,7 @@ typedef struct http_connection {
 	unsigned    ver  : 2;
 	unsigned    code : 14;
 	uint32_t    str;
-	uint32_t    fields[128];
+	uint32_t    fields[HEADER_MAX];
 	void*       data;
 	link_list_t ext;
 } http_connection_t, *HttpConnection;
@@ -52,6 +52,8 @@ typedef struct http_connection {
 #define        HttpConnection_getMethodCode(req)  (req)->code
 #define        HttpConnection_getVersionCode(res) (res)->ver
 #define        HttpConnection_getStatusCode(res)  (res)->code
+#define        HttpConnection_close(conn) \
+	if((conn)->data) free((conn)->data)
 HttpConnection HttpConnection_init(HttpConnection);
 const char*    HttpConnection_getMethod(HttpConnection);
 const char*    HttpConnection_getVersion(HttpConnection);

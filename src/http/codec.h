@@ -34,7 +34,7 @@ typedef struct http_codec {
 	uint8_t     is_ext;
 	uint8_t     cursor;
 	uint32_t    fld;
-	int32_t     hash;
+	uint32_t    hash;
 } http_codec_t, *HttpCodec;
 
 HttpCodec HttpCodec_init(HttpCodec, HttpConnection, Buffer);

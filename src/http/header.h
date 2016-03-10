@@ -5,6 +5,7 @@
 
 #define HEADER_MAP(XX)                     \
 	XX(HH_CONN , 10, "Connection"         ) \
+	XX(HH_KEPA , 10, "Keep-Alive"         ) \
 	XX(HH_DATE ,  4, "Date"               ) \
 	XX(HH_MMVER, 12, "MIME-Version"       ) \
 	XX(HH_TRAL ,  7, "Trailer"            ) \
@@ -74,7 +75,7 @@ typedef enum http_header {
 } http_header_t;
 #undef XX
 
-#define HTTP_HEADER_NUM 62
+#define HTTP_HEADER_NUM 63
 
 http_header_t HttpHeader_findByHash(int32_t);
 http_header_t HttpHeader_findByStr(const char*);
