@@ -94,22 +94,10 @@ typedef struct hash_pair {
 	int32_t id;
 } hash_pair_t, *HashPair;
 
-PRIVATE inline int32_t BKDRHash(const char* str) {
-	unsigned hash = 0;
-	while(*str) {
-		hash = (hash << 7) + (hash << 1) + hash + *str++;
-	}
-	return hash & 0x7FFFFFFF;
-}
-
 http_header_t HttpHeader_find(uint32_t index, uint32_t hash) {
-	uint64_t* i = HEADER_HASH + index;
-	while(*i) {
-		HashPair p = (HashPair)i;
-		if((p->hash ^ hash) == 0) {
-			return p->id;
-		}
-		++i;
+	uint32_t i = HEADER_HASH[index];
+	if((i ^ hash) == 0) {
+		return HEADER_INDEX[index];
 	}
 	return HH_INVALID;
 }
