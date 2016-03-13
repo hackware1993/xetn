@@ -163,10 +163,10 @@ enum {
 	FLD_DONE,
 };
 
-HttpCodec HttpCodec_init(HttpCodec codec, HttpConnection conn, Buffer buf) {
-	codec->phase = PHASE_INIT;
+HttpCodec HttpCodec_init(HttpCodec codec, HttpConnection conn) {
+	codec->state = STATE_INIT;
+	codec->phaseHandler = NULL;
 	codec->conn  = conn;
-	codec->buf   = buf;
 	codec->hash  = 0;
 	codec->is_ext = 0;
 	MemBlock_init(&codec->temp, 1024);
@@ -175,12 +175,6 @@ HttpCodec HttpCodec_init(HttpCodec codec, HttpConnection conn, Buffer buf) {
 	codec->temp.last = 1;
 	return codec;
 }
-
-/*
-HttpEncoder HttpEncoder_init(HttpEncoder encoder, HttpConnection conn, Buffer dest) {
-	return encoder;
-}
-*/
 
 void HttpCodec_close(HttpCodec codec) {
 	MemBlock_free(&codec->temp);
@@ -208,344 +202,32 @@ PRIVATE inline http_header_t find_header(uint32_t hash) {
 	return HH_INVALID;
 }
 
-PRIVATE int8_t decode_res_line(HttpCodec decoder) {
-	/* local variables for data inside HttpEncoder */
-	HttpConnection res = decoder->conn;
-	Buffer   buf  = decoder->buf;
-	MemBlock temp = &decoder->temp;
-	/* should be written when PEND */
-	int32_t  hash = decoder->hash;
-	uint8_t  step = decoder->step;
-	/* temporary variables */
-	int16_t   ret;
-	char     ch;
-	uint32_t begin, end;
-	
-	/* state entry navigation */
-	switch(step) {
-		case RESL_VER:  goto ENTRY_VER;
-		case RESL_ST:   goto ENTRY_ST;
-		case RESL_DESC: goto ENTRY_DESC;
-		case RESL_EOL:  goto ENTRY_EOL;
-	}
-ENTRY_VER:
-	while(!Buffer_isEnd(buf)) {
-		ch = Buffer_get(buf);
-		if(LIKELY(ch ^ SP)) {
-			HASH(hash, ch);
-		} else {
-			hash &= 0x7FFFFFFF;
-			ret = find_version(hash);
-			if(ret == -1) {
-				assert(0);
-				goto ERROR;
-			}
-			res->ver = ret;
-			step = RESL_ST;
-			goto ENTRY_ST;
-		}
-	}
-	goto PEND;
-ENTRY_ST:
-	/* let atoi check the validity of status code */
-	while(!Buffer_isEnd(buf)) {
-		ch = Buffer_get(buf);
-		if(ch ^ SP) {
-			MemBlock_putChar(temp, ch);
-		} else {
-			MemBlock_putChar(temp, '\0');
-			ret = atoi(temp->ptr + temp->last);
-			ret = HttpStatus_find(ret);
-			if(ret == ST_INVALID) {
-				assert(0);
-				goto ERROR;
-			}
-			MemBlock_rollback(temp);
-			res->code = ret;
-			step = RESL_DESC;
-			goto ENTRY_DESC;
-		}
-	}
-	goto PEND;
-ENTRY_DESC:
-	/* skip all description of status code */
-	while(!Buffer_isEnd(buf)) {
-		ch = Buffer_get(buf);
-		if(ch == CR) {
-			step = RESL_EOL;
-			goto ENTRY_EOL;
-		}
-	}
-	goto PEND;
-ENTRY_EOL:
-	if(UNLIKELY(Buffer_isEnd(buf))) {
-		goto PEND;
-	}
-	ch = Buffer_get(buf);
-	if(ch ^ LF) {
-		assert(0);
-		goto ERROR;
-	}
-DONE:
-	decoder->step = 0;
-	decoder->hash = 0;
-	return EXIT_DONE;
-PEND:
-	decoder->step = step;
-	decoder->hash = hash;
-	return EXIT_PEND;
-ERROR:
-	return EXIT_ERROR;
-}
+int8_t decodeInitPhase     (HttpCodec, char*, uint32_t*, uint32_t);
+int8_t decodeReqStatusPhase(HttpCodec, char*, uint32_t*, uint32_t);
+int8_t decodeResStatusPhase(HttpCodec, char*, uint32_t*, uint32_t);
+int8_t decodeFieldPhase    (HttpCodec, char*, uint32_t*, uint32_t);
 
-PRIVATE int8_t decode_req_line(HttpCodec decoder) {
-	/* local variables for data inside HttpEncoder */
-	HttpConnection req = decoder->conn;
-	Buffer   buf  = decoder->buf;
-	MemBlock temp = &decoder->temp;
-	/* should be written when PEND */
-	int32_t  hash = decoder->hash;
-	uint8_t  step = decoder->step;
-	/* temporary variables */
-	int8_t   ret;
-	char     ch;
-	
-	/* state entry navigation */
-	switch(step) {
-		case REQL_METHOD: goto ENTRY_METHOD;
-		case REQL_PATH:   goto ENTRY_PATH;
-		case REQL_VER:    goto ENTRY_VER;
-		case REQL_EOL:    goto ENTRY_EOL;
-	}
-ENTRY_METHOD:
-	while(!Buffer_isEnd(buf)) {
-		ch = Buffer_get(buf);
-		if(LIKELY(ch != SP)) {
-			HASH(hash, ch);
-		} else {
-			step = REQL_PATH;
-			hash &= 0x7FFFFFFF;
-			ret = find_method(hash);
-			if(ret == -1) {
-				assert(0);
-				goto ERROR;
-			}
-			req->code = ret;
-			hash = 0;
-			goto ENTRY_PATH;
-		}
-	}
-	goto PEND;
-ENTRY_PATH:
-	while(!Buffer_isEnd(buf)) {
-		ch = Buffer_get(buf);
-		if(LIKELY(URL_TOKEN_MAP[ch])) {
-			MemBlock_putChar(temp, ch);
-		} else if(ch == SP) {
-			step = REQL_VER;
-			req->str = MemBlock_getStr(temp);
-			goto ENTRY_VER;
-		} else {
-			assert(0);
-			goto ERROR;
-		}
-	}
-	goto PEND;
-ENTRY_VER:
-	while(!Buffer_isEnd(buf)) {
-		ch = Buffer_get(buf);
-		if(LIKELY(ch != CR)) {
-			HASH(hash, ch);
-		} else {
-			step = REQL_EOL;
-			hash &= 0x7FFFFFFF;
-			ret = find_version(hash);
-			if(ret == -1) {
-				assert(0);
-				goto ERROR;
-			}
-			req->ver = ret;
-			hash = 0;
-			goto ENTRY_EOL;
-		}
-	}
-	goto PEND;
-ENTRY_EOL:
-	if(UNLIKELY(Buffer_isEnd(buf))) {
-		goto PEND;
-	}
-	ch = Buffer_get(buf);
-	if(ch ^ LF) {
-		assert(0);
-		goto ERROR;
-	}
-DONE:
-	decoder->step = 0;
-	decoder->hash = 0;
-	return EXIT_DONE;
-PEND:
-	decoder->step = step;
-	decoder->hash = hash;
-	return EXIT_PEND;
-ERROR:
-	return EXIT_ERROR;
-}
+int8_t encodeInitPhase     (HttpCodec, char*, uint32_t*, uint32_t);
+int8_t encodeReqStatusPhase(HttpCodec, char*, uint32_t*, uint32_t);
+int8_t encodeResStatusPhase(HttpCodec, char*, uint32_t*, uint32_t);
+int8_t encodeFieldPhase    (HttpCodec, char*, uint32_t*, uint32_t);
 
-PRIVATE int8_t decode_fields(HttpCodec decoder) {
-	/* local variable for data inside HttpDecoder */
-	HttpConnection conn = decoder->conn;
-	Buffer   buf  = decoder->buf;
-	MemBlock temp = &decoder->temp;
-	/* variables below should be write when PEND */
-	uint32_t hash = decoder->hash;
-	uint8_t  step = decoder->step;
-	uint32_t fld  = decoder->fld;
-	uint8_t  is_ext = decoder->is_ext;
-	uint8_t  cursor = decoder->cursor;
-	/* temporary variable */
-	char     ch;
-	uint32_t begin, end;
-
-	/* state entry navigation */
-	switch(step) {
-		case FLD_INIT: goto ENTRY_INIT;
-		case FLD_KEY:  goto ENTRY_KEY;
-		case FLD_SEP:  goto ENTRY_SEP;
-		case FLD_VAL:  goto ENTRY_VAL;
-		case FLD_EOL:  goto ENTRY_EOL;
-		case FLD_DONE: goto ENTRY_DONE;
-	}
-ENTRY_INIT:
-	hash = 0;
-	if(UNLIKELY(Buffer_isEnd(buf))) {
-		goto PEND;
-	}
-	ch = Buffer_get(buf);
-	if(LIKELY(KEY_TOKEN_MAP[ch])) {
-		HASH(hash, ch);
-		MemBlock_putChar(temp, ch);
-		step = FLD_KEY;
-		goto ENTRY_KEY;
-	} else if(ch == CR) {
-		step = FLD_DONE;
-		goto ENTRY_DONE;
+int8_t encodeInitPhase(HttpCodec encoder,
+		char* buf, uint32_t* pos, uint32_t len) {
+	encoder->cursor = 0;
+	encoder->step = 0;
+	if(encoder->conn->type ^ HTTP_RES) {
+		encoder->phaseHandler = encodeReqStatusPhase;
 	} else {
-		assert(0);
-		goto ERROR;
+		encoder->phaseHandler = encodeResStatusPhase;
 	}
-
-ENTRY_KEY:
-	begin = Buffer_getPos(buf);
-	while(!Buffer_isEnd(buf)) {
-		ch = Buffer_get(buf);
-		if(LIKELY(KEY_TOKEN_MAP[ch])) {
-			HASH(hash, ch);
-			//MemBlock_putChar(temp, ch);
-		} else if(ch == COL) {
-			end = Buffer_getPos(buf) - 1;
-			MemBlock_putStrN(temp, Buffer_getPtr(buf) + begin, end - begin);
-			step = FLD_SEP;
-			goto ENTRY_SEP;
-		} else {
-			assert(0);
-			goto ERROR;
-		}
-	}
-	end = Buffer_getPos(buf);
-	MemBlock_putStrN(temp, Buffer_getPtr(buf) + begin, end - begin);
-	goto PEND;
-
-ENTRY_SEP:
-	if(UNLIKELY(Buffer_isEnd(buf))) {
-		goto PEND;
-	}
-	ch = Buffer_get(buf);
-	if(LIKELY(ch == SP)) {
-		fld = find_header(hash);
-		if(LIKELY(fld ^ HH_INVALID)) {
-			MemBlock_rollback(temp);
-		} else {
-			fld = MemBlock_getStr(temp);
-			/* the header belongs to extra header */
-			is_ext = 1;
-		}
-		step = FLD_VAL;
-		goto ENTRY_VAL;
-	} else {
-		assert(0);
-		goto ERROR;
-	}
-ENTRY_VAL:
-	begin = Buffer_getPos(buf);
-	while(!Buffer_isEnd(buf)) {
-		ch = Buffer_get(buf);
-		if(LIKELY(VAL_TOKEN_MAP[ch])) {
-			//MemBlock_putChar(temp, ch);
-		} else if(ch == CR) {
-			end = Buffer_getPos(buf) - 1;
-			MemBlock_putStrN(temp, Buffer_getPtr(buf) + begin, end - begin);
-			step = FLD_EOL;
-			goto ENTRY_EOL;
-		} else {
-			assert(0);
-			goto ERROR;
-		}
-	}
-	end = Buffer_getPos(buf);
-	MemBlock_putStrN(temp, Buffer_getPtr(buf) + begin, end - begin);
-	goto PEND;
-
-ENTRY_EOL:
-	if(UNLIKELY(Buffer_isEnd(buf))) {
-		goto PEND;
-	}
-	ch = Buffer_get(buf);
-	if(LIKELY(ch == LF)) {
-		step = FLD_INIT;
-		uint32_t v = MemBlock_getStr(temp);
-		/* save the current line of http header field */
-		if(LIKELY(!is_ext)) {
-			conn->fields[fld] = v;
-		} else {
-			MemBlock_putInt4(temp, hash);
-			MemBlock_putInt4(temp, fld);
-			MemBlock_putInt4(temp, v);
-			conn->fields[cursor++] = MemBlock_getStruct(temp);
-			is_ext = 0;
-		}
-		goto ENTRY_INIT;
-	} else {
-		assert(0);
-		goto ERROR;
-	}
-ENTRY_DONE:
-	if(UNLIKELY(Buffer_isEnd(buf))) {
-		goto PEND;
-	}
-	ch = Buffer_get(buf);
-	if(ch ^ LF) {
-		assert(0);
-		goto ERROR;
-	}
-DONE:
-	decoder->step = 0;
-	decoder->hash = 0;
-	return EXIT_DONE;
-PEND:
-	decoder->is_ext = is_ext;
-	decoder->cursor = cursor;
-	decoder->fld = fld;
-	decoder->step = step;
-	decoder->hash = hash;
-	return EXIT_PEND;
-ERROR:
-	return EXIT_ERROR;
 }
-
-int8_t encode_req_line(HttpCodec encoder) {
+int8_t encodeReqStatusPhase(HttpCodec encoder,
+		char* buf, uint32_t* pos, uint32_t len) {
 	HttpConnection conn = encoder->conn;
-	Buffer         buf  = encoder->buf;
 	MemBlock       temp = &encoder->temp;
+	uint32_t pindex = *pos;
+	uint32_t nleft;
 	uint8_t  step = encoder->step;
 	uint32_t ret;
 	const char* str;
@@ -560,62 +242,84 @@ int8_t encode_req_line(HttpCodec encoder) {
 ENTRY_METHOD:
 	str = METHOD_NAME[conn->code];
 	slen = strlen(str);
-	ret = Buffer_putArr(buf, (void*)str, 0, slen);
-	if(ret ^ slen) {
-		MemBlock_putStrN(temp, str + ret, slen - ret);
+	nleft = (len - pindex >= slen) ? slen : len - pindex;
+	strncpy(buf + pindex, str, nleft);
+	pindex += nleft;
+	//ret = Buffer_putArr(buf, (void*)str, 0, slen);
+	if(nleft ^ slen) {
+		MemBlock_putStrN(temp, str + nleft, slen - nleft);
 		//step = REQL_PATH;
 		//goto PEND;
 	}
-	if(!Buffer_isFull(buf)) {
-		Buffer_put(buf, SP);
+	if(LIKELY(pindex ^ len)) {
+		buf[pindex++] = SP;
+		//Buffer_put(buf, SP);
 	} else {
 		MemBlock_putChar(temp, SP);
 		step = REQL_PATH;
-		goto PEND;
+		goto EXIT_PEND;
 	}
 ENTRY_PATH:
 	str = (const char*)(conn->data + conn->str);
 	slen = strlen(str);
-	ret = Buffer_putArr(buf, (void*)str, 0, slen);
-	if(ret ^ slen) {
-		MemBlock_putStrN(temp, str + ret, slen - ret);
+	nleft = (len - pindex >= slen) ? slen : len - pindex;
+	strncpy(buf + pindex, str, nleft);
+	pindex += nleft;
+	//ret = Buffer_putArr(buf, (void*)str, 0, slen);
+	if(nleft ^ slen) {
+		MemBlock_putStrN(temp, str + nleft, slen - nleft);
 		//step = REQL_VER;
 		//goto PEND;
 	}
-	if(!Buffer_isFull(buf)) {
-		Buffer_put(buf, SP);
+	if(LIKELY(pindex ^ len)) {
+		buf[pindex++] = SP;
+		//Buffer_put(buf, SP);
 	} else {
 		MemBlock_putChar(temp, SP);
 		step = REQL_VER;
-		goto PEND;
+		goto EXIT_PEND;
 	}
 ENTRY_VER:
 	str = VERSION_NAME[conn->ver];
-	ret = Buffer_putArr(buf, (void*)str, 0, 8);
-	if(ret ^ 8) {
-		MemBlock_putStrN(temp, str + ret, 8 - ret);
+	//ret = Buffer_putArr(buf, (void*)str, 0, 8);
+	nleft = (len - pindex >= 8) ? 8 : len - pindex;
+	strncpy(buf + pindex, str, nleft);
+	pindex += nleft;
+	if(nleft ^ 8) {
+		MemBlock_putStrN(temp, str + nleft, 8 - nleft);
 		step = REQL_EOL;
-		goto PEND;
+		goto EXIT_PEND;
 	}
 ENTRY_EOL:
-	ret = Buffer_putArr(buf, CRLF, 0, 2);
-	if(ret ^ 2) {
-		MemBlock_putStrN(temp, CRLF + ret, 2 - ret);
+	//ret = Buffer_putArr(buf, CRLF, 0, 2);
+	nleft = (len - pindex >= 2) ? 2 : len - pindex;
+	strncpy(buf + pindex, CRLF, nleft);
+	pindex += nleft;
+	if(nleft ^ 2) {
+		MemBlock_putStrN(temp, CRLF + nleft, 2 - nleft);
 	}
-DONE:
+EXIT_DONE:
 	encoder->step = 0;
+	*pos = pindex;
+	encoder->phaseHandler = encodeFieldPhase;
+	if(temp->len) {
+		return EXIT_PEND;
+	}
 	return EXIT_DONE;
-PEND:
+EXIT_PEND:
 	encoder->step = step;
+	*pos = pindex;
 	return EXIT_PEND;
-ERROR:
+EXIT_ERROR:
 	return EXIT_ERROR;
 }
 
-int8_t encode_res_line(HttpCodec encoder) {
+int8_t encodeResStatusPhase(HttpCodec encoder,
+		char* buf, uint32_t* pos, uint32_t len) {
 	HttpConnection conn = encoder->conn;
-	Buffer   dest = encoder->buf;
 	MemBlock temp = &encoder->temp;
+	uint32_t pindex = *pos;
+	uint32_t nleft;
 	uint8_t  step = encoder->step;
 	uint32_t ret;
 	const char* str;
@@ -628,52 +332,69 @@ int8_t encode_res_line(HttpCodec encoder) {
 	}
 ENTRY_VER:
 	str = VERSION_NAME[conn->ver];
-	ret = Buffer_putArr(dest, (void*)str, 0, 8);
-	if(ret ^ 8) {
-		MemBlock_putStrN(temp, str + ret, 8 - ret);
+	//ret = Buffer_putArr(dest, (void*)str, 0, 8);
+	nleft = (len - pindex >= 8) ? 8 : len - pindex;
+	strncpy(buf + pindex, str, nleft);
+	pindex += nleft;
+	if(nleft ^ 8) {
+		MemBlock_putStrN(temp, str + nleft, 8 - nleft);
 		//step = RESL_ST;
 		//goto PEND;
 	}
-	if(!Buffer_isFull(dest)) {
-		Buffer_put(dest, SP);
+	if(LIKELY(pindex ^ len)) {
+		buf[pindex++] = SP;
+		//Buffer_put(dest, SP);
 	} else {
 		MemBlock_putChar(temp, SP);
 		step = RESL_ST;
-		goto PEND;
+		goto EXIT_PEND;
 	}
 ENTRY_ST:
 	str = STATUS_DESC[conn->code];
 	slen = strlen(str);
-	ret = Buffer_putArr(dest, (void*)str, 0, slen);
-	if(ret ^ slen) {
-		MemBlock_putStrN(temp, str + ret, slen - ret);
+	//ret = Buffer_putArr(dest, (void*)str, 0, slen);
+	nleft = (len - pindex >= slen) ? slen : len - pindex;
+	strncpy(buf + pindex, str, nleft);
+	pindex += nleft;
+	if(nleft ^ slen) {
+		MemBlock_putStrN(temp, str + nleft, slen - nleft);
 		step = RESL_EOL;
-		goto PEND;
+		goto EXIT_PEND;
 	}
 ENTRY_EOL:
-	ret = Buffer_putArr(dest, CRLF, 0, 2);
-	if(ret ^ 2) {
-		MemBlock_putStrN(temp, CRLF + ret, 2 - ret);
+	nleft = (len - pindex >= 2) ? 2 : len - pindex;
+	strncpy(buf + pindex, str, nleft);
+	pindex += nleft;
+	//ret = Buffer_putArr(dest, CRLF, 0, 2);
+	if(nleft ^ 2) {
+		MemBlock_putStrN(temp, CRLF + nleft, 2 - nleft);
 	}
-DONE:
+EXIT_DONE:
 	encoder->step = 0;
+	*pos = pindex;
+	encoder->phaseHandler = encodeFieldPhase;
+	if(temp->len) {
+		return EXIT_PEND;
+	}
 	return EXIT_DONE;
-PEND:
+EXIT_PEND:
 	encoder->step = step;
+	*pos = pindex;
 	return EXIT_PEND;
-ERROR:
+EXIT_ERROR:
 	return EXIT_ERROR;
 }
 
-int8_t encode_fields(HttpCodec encoder) {
+int8_t encodeFieldPhase(HttpCodec encoder,
+		char* buf, uint32_t* pos, uint32_t len) {
 	HttpConnection conn = encoder->conn;
-	Buffer   dest = encoder->buf;
 	MemBlock temp = &encoder->temp;
-
+	uint32_t pindex = *pos;
 	uint8_t step = encoder->step;
 	uint8_t cursor = encoder->cursor;
 	uint8_t is_ext = encoder->is_ext;
 	/* temporary variable */
+	uint32_t nleft;
 	void*       data   = conn->data;
 	uint32_t*   fields = conn->fields;
 	const char* pkey, * pval;
@@ -690,6 +411,7 @@ int8_t encode_fields(HttpCodec encoder) {
 		case FLD_DONE: goto ENTRY_DONE;
 	}
 ENTRY_INIT:
+	// TODO simplify here
 	while(cursor < HEADER_MAX) {
 		/* check is the is_ext flag should be set */
 		if(!is_ext && cursor == HTTP_HEADER_NUM) {
@@ -716,18 +438,24 @@ ENTRY_KEY:
 		pkey = (const char*)(data + ef->key);
 		klen = strlen(pkey);
 	}
-	ret = Buffer_putArr(dest, (void*)pkey, 0, klen);
-	if(ret ^ klen) {
-		MemBlock_putStrN(temp, pkey + ret, klen - ret);
+	nleft = (len - pindex >= klen) ? klen : len - pindex;
+	strncpy(buf + pindex, pkey, nleft);
+	pindex += nleft;
+	//ret = Buffer_putArr(dest, (void*)pkey, 0, klen);
+	if(nleft ^ klen) {
+		MemBlock_putStrN(temp, pkey + nleft, klen - nleft);
 		step = FLD_SEP;
-		goto PEND;
+		goto EXIT_PEND;
 	}
 ENTRY_SEP:
-	ret = Buffer_putArr(dest, SEP, 0, 2);
-	if(ret ^ 2) {
-		MemBlock_putStrN(temp, SEP + ret, 2 - ret);
+	nleft = (len - pindex >= 2) ? 2 : len - pindex;
+	strncpy(buf + pindex, SEP, nleft);
+	pindex += nleft;
+	//ret = Buffer_putArr(dest, SEP, 0, 2);
+	if(nleft ^ 2) {
+		MemBlock_putStrN(temp, SEP + nleft, 2 - nleft);
 		step = FLD_VAL;
-		goto PEND;
+		goto EXIT_PEND;
 	}
 ENTRY_VAL:
 	offset = fields[cursor];
@@ -738,150 +466,470 @@ ENTRY_VAL:
 		pval = (const char*)(data + ef->value);
 	}
 	vlen = strlen(pval);
-	ret = Buffer_putArr(dest, (void*)pval, 0, vlen);
-	if(ret ^ vlen) {
-		MemBlock_putStrN(temp, pval + ret, vlen - ret);
+	nleft = (len - pindex >= vlen) ? vlen : len - pindex;
+	strncpy(buf + pindex, pval, nleft);
+	pindex += nleft;
+	//ret = Buffer_putArr(dest, (void*)pval, 0, vlen);
+	if(nleft ^ vlen) {
+		MemBlock_putStrN(temp, pval + nleft, vlen - nleft);
 		step = FLD_EOL;
-		goto PEND;
+		goto EXIT_PEND;
 	}
 ENTRY_EOL:
 	++cursor;
-	ret = Buffer_putArr(dest, CRLF, 0, 2);
-	if(ret ^ 2) {
-		MemBlock_putStrN(temp, CRLF + ret, 2 - ret);
+	nleft = (len - pindex >= 2) ? 2 : len - pindex;
+	strncpy(buf + pindex, CRLF, nleft);
+	pindex += nleft;
+	//ret = Buffer_putArr(dest, CRLF, 0, 2);
+	if(nleft ^ 2) {
+		MemBlock_putStrN(temp, CRLF + nleft, 2 - nleft);
 		step = FLD_INIT;
-		goto PEND;
+		goto EXIT_PEND;
 	}
 	goto ENTRY_INIT;
 ENTRY_DONE:
-	ret = Buffer_putArr(dest, CRLF, 0, 2);
-	if(ret ^ 2) {
-		MemBlock_putStrN(temp, CRLF + ret, 2 - ret);
-		goto DONE;
+	nleft = (len - pindex >= 2) ? 2 : len - pindex;
+	strncpy(buf + pindex, CRLF, nleft);
+	pindex += nleft;
+	//ret = Buffer_putArr(dest, CRLF, 0, 2);
+	if(nleft ^ 2) {
+		MemBlock_putStrN(temp, CRLF + nleft, 2 - nleft);
+		goto EXIT_DONE;
 	}
-DONE:
+EXIT_DONE:
 	encoder->step = 0;
+	*pos = pindex;
+	encoder->phaseHandler = NULL;
+	if(temp->len) {
+		return EXIT_PEND;
+	}
 	return EXIT_DONE;
-PEND:
+EXIT_PEND:
 	encoder->step = step;
 	encoder->cursor = cursor;
 	encoder->is_ext = is_ext;
+	*pos = pindex;
 	return EXIT_PEND;
-ERROR:
+EXIT_ERROR:
 	return EXIT_ERROR;
 }
 
-int8_t HttpCodec_decode(HttpCodec decoder, http_type_t type) {
-	int8_t (*decode_line)(HttpCodec) = NULL;
-	int8_t ret;
-	switch(decoder->phase) {
-		case PHASE_INIT:   goto ENTRY_INIT;
-		case PHASE_STATUS: goto ENTRY_STATUS;
-		case PHASE_FIELD:  goto ENTRY_FIELD;
-		case PHASE_DONE:   return EXIT_DONE;
+int8_t HttpCodec_encode(HttpCodec encoder, char* buf, uint32_t* len) {
+	uint32_t pos = 0;
+	int8_t   ret;
+
+	switch(encoder->state) {
+		case STATE_INIT:
+			encoder->phaseHandler = encodeInitPhase;
+			encoder->state = STATE_DOING;
+		case STATE_DOING:
+			if(encoder->temp.len) {
+				MemBlock temp = &encoder->temp;
+				uint32_t off = temp->last;
+				uint32_t nleft = temp->len - off;
+				if(*len >= nleft) {
+					strncpy(buf, temp->ptr + off, nleft);
+					temp->len = temp->last = 0;
+					pos = nleft;
+				} else {
+					strncpy(buf, temp->ptr + off, *len);
+					temp->last += *len;
+					return EXIT_PEND;
+				}
+			}
+			while(encoder->phaseHandler) {
+				switch(ret = encoder->phaseHandler(encoder, buf, &pos, *len)) {
+					case EXIT_ERROR:
+						encoder->state = STATE_ERROR;
+					case EXIT_PEND:
+						return ret;
+				}
+			}
+			*len = pos;
+			encoder->state = STATE_DONE;
+			return EXIT_DONE;
+		case STATE_DONE:  return EXIT_DONE;
+		case STATE_ERROR: return EXIT_ERROR;
 	}
-ENTRY_INIT:
+	return EXIT_ERROR;
+}
+int8_t decodeInitPhase(HttpCodec decoder,
+		char* buf, uint32_t* pos, uint32_t len) {
 	decoder->cursor = HTTP_HEADER_NUM;
 	decoder->step = 0;
-	decoder->phase = PHASE_STATUS;
-ENTRY_STATUS:
-	if(type ^ HTTP_RES) {
-		decode_line = decode_req_line;
+	if(decoder->conn->type ^ HTTP_RES) {
+		decoder->phaseHandler = decodeReqStatusPhase;
 	} else {
-		decode_line = decode_res_line;
+		decoder->phaseHandler = decodeResStatusPhase;
 	}
-	ret = decode_line(decoder);
-	switch(ret) {
-		case EXIT_ERROR: goto ERROR;
-		case EXIT_PEND:  goto PEND;
-		case EXIT_DONE:
-			decoder->phase = PHASE_FIELD;
-			goto ENTRY_FIELD;
-	}
-ENTRY_FIELD:
-	ret = decode_fields(decoder);
-	switch(ret) {
-		case EXIT_ERROR: goto ERROR;
-		case EXIT_PEND:  goto PEND;
-		case EXIT_DONE:
-			decoder->phase = PHASE_DONE;
-			goto DONE;
-	}
-ERROR:
-	return EXIT_ERROR;
-PEND:
-	return EXIT_PEND;
-DONE:
-	decoder->conn->data = decoder->temp.ptr;
 	return EXIT_DONE;
 }
 
-int8_t HttpCodec_encode(HttpCodec encoder, http_type_t type) {
-	Buffer   dest = encoder->buf;
-	MemBlock temp = &encoder->temp;
-	uint32_t len = temp->len;
-	uint32_t last = temp->last;
-	int32_t ret;
-	int8_t (*encode_line) (HttpCodec) = NULL;
-
-	/* check the temp zone every time calling this function */
-	/* if there exist data inside temp, move it to dest buffer */
-	if(len) {
-		last += Buffer_putArr(dest, temp->ptr, last, len - last);
-		temp->last = last;
-		if(last ^ len) {
-			goto PEND;
+int8_t decodeReqStatusPhase(HttpCodec decoder,
+		char* buf, uint32_t* pos, uint32_t len) {
+	/* local variables for data inside HttpEncoder */
+	HttpConnection req = decoder->conn;
+	MemBlock temp = &decoder->temp;
+	uint32_t pindex = *pos;
+	/* should be written when PEND */
+	int32_t  hash = decoder->hash;
+	uint8_t  step = decoder->step;
+	/* temporary variables */
+	int8_t   ret;
+	char     ch;
+	
+	/* state entry navigation */
+	switch(step) {
+		case REQL_METHOD: goto ENTRY_METHOD;
+		case REQL_PATH:   goto ENTRY_PATH;
+		case REQL_VER:    goto ENTRY_VER;
+		case REQL_EOL:    goto ENTRY_EOL;
+	}
+ENTRY_METHOD:
+	while(pindex ^ len) {
+		ch = buf[pindex++];
+		if(LIKELY(ch != SP)) {
+			HASH(hash, ch);
 		} else {
-			temp->len = 0;
-			temp->last = 0;
+			step = REQL_PATH;
+			hash &= 0x7FFFFFFF;
+			ret = find_method(hash);
+			if(ret == -1) {
+				assert(0);
+				goto EXIT_ERROR;
+			}
+			req->code = ret;
+			hash = 0;
+			goto ENTRY_PATH;
 		}
 	}
-
-	/* navigation */
-	switch(encoder->phase) {
-		case PHASE_INIT:
-			goto ENTRY_INIT;
-		case PHASE_STATUS:
-			goto ENTRY_STATUS;
-		case PHASE_FIELD:
-			goto ENTRY_FIELD;
-		case PHASE_DONE:
-			return EXIT_DONE;
-	}
-
-ENTRY_INIT:
-	encoder->cursor = 0;
-	encoder->step = 0;
-	encoder->phase = PHASE_STATUS;
-ENTRY_STATUS:
-	if(type ^ HTTP_REQ) {
-		encode_line = encode_res_line;
-	} else {
-		encode_line = encode_req_line;
-	}
-	ret = encode_line(encoder);
-	if(ret == EXIT_DONE){
-		encoder->phase = PHASE_FIELD;
-		if(temp->len) {
-			goto PEND;
+	goto EXIT_PEND;
+ENTRY_PATH:
+	while(pindex ^ len) {
+		ch = buf[pindex++];
+		if(LIKELY(URL_TOKEN_MAP[ch])) {
+			MemBlock_putChar(temp, ch);
+		} else if(ch == SP) {
+			step = REQL_VER;
+			req->str = MemBlock_getStr(temp);
+			goto ENTRY_VER;
+		} else {
+			assert(0);
+			goto EXIT_ERROR;
 		}
-	} else {
-		goto PEND;
 	}
-ENTRY_FIELD:
-	ret = encode_fields(encoder);
-	if(ret == EXIT_DONE){
-		encoder->phase = PHASE_DONE;
-		if(temp->len) {
-			goto PEND;
+	goto EXIT_PEND;
+ENTRY_VER:
+	while(pindex ^ len) {
+		ch = buf[pindex++];
+		if(LIKELY(ch != CR)) {
+			HASH(hash, ch);
+		} else {
+			step = REQL_EOL;
+			hash &= 0x7FFFFFFF;
+			ret = find_version(hash);
+			if(ret == -1) {
+				assert(0);
+				goto EXIT_ERROR;
+			}
+			req->ver = ret;
+			hash = 0;
+			goto ENTRY_EOL;
 		}
-	} else {
-		goto PEND;
 	}
-DONE:
+	goto EXIT_PEND;
+ENTRY_EOL:
+	if(UNLIKELY(!(pindex ^ len))) {
+		goto EXIT_PEND;
+	}
+	ch = buf[pindex++];
+	if(ch ^ LF) {
+		assert(0);
+		goto EXIT_ERROR;
+	}
+EXIT_DONE:
+	decoder->step = 0;
+	decoder->hash = 0;
+	decoder->phaseHandler = decodeFieldPhase;
+	*pos = pindex;
 	return EXIT_DONE;
-PEND:
+EXIT_PEND:
+	decoder->step = step;
+	decoder->hash = hash;
+	*pos = pindex;
 	return EXIT_PEND;
-ERROR:
+EXIT_ERROR:
 	return EXIT_ERROR;
 }
+
+int8_t decodeResStatusPhase(HttpCodec decoder,
+		char* buf, uint32_t* pos, uint32_t len) {
+	/* local variables for data inside HttpEncoder */
+	HttpConnection res = decoder->conn;
+	MemBlock temp = &decoder->temp;
+	uint32_t pindex = *pos;
+	/* should be written when PEND */
+	int32_t  hash = decoder->hash;
+	uint8_t  step = decoder->step;
+	/* temporary variables */
+	int16_t  ret;
+	char     ch;
+	uint32_t begin, end;
+	
+	/* state entry navigation */
+	switch(step) {
+		case RESL_VER:  goto ENTRY_VER;
+		case RESL_ST:   goto ENTRY_ST;
+		case RESL_DESC: goto ENTRY_DESC;
+		case RESL_EOL:  goto ENTRY_EOL;
+	}
+ENTRY_VER:
+	while(pindex ^ len) {
+		ch = buf[pindex++];
+		if(LIKELY(ch ^ SP)) {
+			HASH(hash, ch);
+		} else {
+			hash &= 0x7FFFFFFF;
+			ret = find_version(hash);
+			if(ret == -1) {
+				assert(0);
+				goto EXIT_ERROR;
+			}
+			res->ver = ret;
+			step = RESL_ST;
+			goto ENTRY_ST;
+		}
+	}
+	goto EXIT_PEND;
+ENTRY_ST:
+	/* let atoi check the validity of status code */
+	while(pindex ^ len) {
+		ch = buf[pindex++];
+		if(ch ^ SP) {
+			MemBlock_putChar(temp, ch);
+		} else {
+			MemBlock_putChar(temp, '\0');
+			ret = atoi(temp->ptr + temp->last);
+			ret = HttpStatus_find(ret);
+			if(ret == ST_INVALID) {
+				assert(0);
+				goto EXIT_ERROR;
+			}
+			MemBlock_rollback(temp);
+			res->code = ret;
+			step = RESL_DESC;
+			goto ENTRY_DESC;
+		}
+	}
+	goto EXIT_PEND;
+ENTRY_DESC:
+	/* skip all description of status code */
+	while(pindex ^ len) {
+		ch = buf[pindex++];
+		if(ch == CR) {
+			step = RESL_EOL;
+			goto ENTRY_EOL;
+		}
+	}
+	goto EXIT_PEND;
+ENTRY_EOL:
+	if(UNLIKELY(!(pindex ^ len))) {
+		goto EXIT_PEND;
+	}
+	ch = buf[pindex++];
+	if(ch ^ LF) {
+		assert(0);
+		goto EXIT_ERROR;
+	}
+EXIT_DONE:
+	decoder->step = 0;
+	decoder->hash = 0;
+	decoder->phaseHandler = decodeFieldPhase;
+	*pos = pindex;
+	return EXIT_DONE;
+EXIT_PEND:
+	decoder->step = step;
+	decoder->hash = hash;
+	*pos = pindex;
+	return EXIT_PEND;
+EXIT_ERROR:
+	return EXIT_ERROR;
+}
+
+int8_t decodeFieldPhase(HttpCodec decoder,
+		char* buf, uint32_t* pos, uint32_t len) {
+	/* local variable for data inside HttpDecoder */
+	HttpConnection conn = decoder->conn;
+	MemBlock temp = &decoder->temp;
+	uint32_t pindex = *pos;
+	/* variables below should be write when PEND */
+	uint32_t hash = decoder->hash;
+	uint8_t  step = decoder->step;
+	uint32_t fld  = decoder->fld;
+	uint8_t  is_ext = decoder->is_ext;
+	uint8_t  cursor = decoder->cursor;
+	/* temporary variable */
+	char     ch;
+	uint32_t begin, end;
+
+	/* state entry navigation */
+	switch(step) {
+		case FLD_INIT: goto ENTRY_INIT;
+		case FLD_KEY:  goto ENTRY_KEY;
+		case FLD_SEP:  goto ENTRY_SEP;
+		case FLD_VAL:  goto ENTRY_VAL;
+		case FLD_EOL:  goto ENTRY_EOL;
+		case FLD_DONE: goto ENTRY_DONE;
+	}
+ENTRY_INIT:
+	hash = 0;
+	if(UNLIKELY(!(pindex ^ len))) {
+		goto EXIT_PEND;
+	}
+	ch = buf[pindex++];
+	if(LIKELY(KEY_TOKEN_MAP[ch])) {
+		HASH(hash, ch);
+		MemBlock_putChar(temp, ch);
+		step = FLD_KEY;
+		goto ENTRY_KEY;
+	} else if(ch == CR) {
+		step = FLD_DONE;
+		goto ENTRY_DONE;
+	} else {
+		assert(0);
+		goto EXIT_ERROR;
+	}
+ENTRY_KEY:
+	begin = pindex;
+	while(pindex ^ len) {
+		ch = buf[pindex++];
+		if(LIKELY(KEY_TOKEN_MAP[ch])) {
+			HASH(hash, ch);
+		} else if(ch == COL) {
+			end = pindex - 1;
+			MemBlock_putStrN(temp, buf + begin, end - begin);
+			step = FLD_SEP;
+			goto ENTRY_SEP;
+		} else {
+			assert(0);
+			goto EXIT_ERROR;
+		}
+	}
+	end = pindex;
+	MemBlock_putStrN(temp, buf + begin, end - begin);
+	goto EXIT_PEND;
+ENTRY_SEP:
+	if(UNLIKELY(!(pindex ^ len))) {
+		goto EXIT_PEND;
+	}
+	ch = buf[pindex++];
+	if(LIKELY(ch == SP)) {
+		fld = find_header(hash);
+		if(LIKELY(fld ^ HH_INVALID)) {
+			MemBlock_rollback(temp);
+		} else {
+			fld = MemBlock_getStr(temp);
+			/* the header belongs to extra header */
+			is_ext = 1;
+		}
+		step = FLD_VAL;
+		goto ENTRY_VAL;
+	} else {
+		assert(0);
+		goto EXIT_ERROR;
+	}
+ENTRY_VAL:
+	begin = pindex;
+	while(pindex ^ len) {
+		ch = buf[pindex++];
+		if(LIKELY(VAL_TOKEN_MAP[ch])) {
+			//MemBlock_putChar(temp, ch);
+		} else if(ch == CR) {
+			end = pindex - 1;
+			MemBlock_putStrN(temp, buf + begin, end - begin);
+			step = FLD_EOL;
+			goto ENTRY_EOL;
+		} else {
+			assert(0);
+			goto EXIT_ERROR;
+		}
+	}
+	end = pindex;
+	MemBlock_putStrN(temp, buf + begin, end - begin);
+	goto EXIT_PEND;
+
+ENTRY_EOL:
+	if(UNLIKELY(!(pindex ^ len))) {
+		goto EXIT_PEND;
+	}
+	ch = buf[pindex++];
+	if(LIKELY(ch == LF)) {
+		step = FLD_INIT;
+		uint32_t v = MemBlock_getStr(temp);
+		/* save the current line of http header field */
+		if(LIKELY(!is_ext)) {
+			conn->fields[fld] = v;
+		} else {
+			MemBlock_putInt4(temp, hash);
+			MemBlock_putInt4(temp, fld);
+			MemBlock_putInt4(temp, v);
+			conn->fields[cursor++] = MemBlock_getStruct(temp);
+			is_ext = 0;
+		}
+		goto ENTRY_INIT;
+	} else {
+		assert(0);
+		goto EXIT_ERROR;
+	}
+ENTRY_DONE:
+	if(UNLIKELY(!(pindex ^ len))) {
+		goto EXIT_PEND;
+	}
+	ch = buf[pindex++];
+	if(ch ^ LF) {
+		assert(0);
+		goto EXIT_ERROR;
+	}
+EXIT_DONE:
+	decoder->step = 0;
+	decoder->hash = 0;
+	decoder->phaseHandler = NULL;
+	*pos = pindex;
+	return EXIT_DONE;
+EXIT_PEND:
+	decoder->is_ext = is_ext;
+	decoder->cursor = cursor;
+	decoder->fld = fld;
+	decoder->step = step;
+	decoder->hash = hash;
+	*pos = pindex;
+	return EXIT_PEND;
+EXIT_ERROR:
+	return EXIT_ERROR;
+}
+
+int8_t HttpCodec_decode(HttpCodec decoder, char* buf, uint32_t len) {
+	uint32_t pos = 0;
+	int8_t   ret;
+	switch(decoder->state) {
+		case STATE_INIT:
+			decoder->phaseHandler = decodeInitPhase;
+			decoder->state = STATE_DOING;
+		case STATE_DOING:
+			while(decoder->phaseHandler) {
+				switch(ret = decoder->phaseHandler(decoder, buf, &pos, len)) {
+					case EXIT_ERROR:
+						decoder->state = STATE_ERROR;
+					case EXIT_PEND:
+						return ret;
+				}
+			}
+			decoder->conn->data = decoder->temp.ptr;
+			decoder->state = STATE_DONE;
+			return EXIT_DONE;
+		case STATE_DONE:  return EXIT_DONE;
+		case STATE_ERROR: return EXIT_ERROR;
+	}
+	return EXIT_ERROR;
+}
+

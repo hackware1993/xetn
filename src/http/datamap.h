@@ -13,7 +13,7 @@ extern const char* VERSION_NAME[];
 extern uint64_t    VERSION_HASH[];
 
 extern uint8_t     HEADER_LEN[];
-extern uint64_t    HEADER_HASH[];
+extern uint32_t    HEADER_HASH[];
 extern uint8_t     HEADER_INDEX[];
 extern const char* HEADER_NAME[];
 extern const char* HEADER_LABEL[];

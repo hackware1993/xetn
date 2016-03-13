@@ -3,7 +3,6 @@
 
 #include "header.h"
 #include "status.h"
-#include "../list.h"
 
 #define METHOD_MAP(XX) \
 	XX(OPTIONS)        \
@@ -34,6 +33,11 @@ typedef enum http_method {
 
 #define HEADER_MAX 128
 
+typedef enum http_type {
+	HTTP_REQ,
+	HTTP_RES,
+} http_type_t;
+
 typedef struct extra_field {
 	uint32_t hash;
 	uint32_t key;
@@ -41,12 +45,12 @@ typedef struct extra_field {
 } extra_field_t, *ExtraField;
 
 typedef struct http_connection {
+	unsigned    type : 2;
 	unsigned    ver  : 2;
-	unsigned    code : 14;
+	unsigned    code : 12;
 	uint32_t    str;
 	uint32_t    fields[HEADER_MAX];
 	void*       data;
-	link_list_t ext;
 } http_connection_t, *HttpConnection;
 
 #define        HttpConnection_getMethodCode(req)  (req)->code
