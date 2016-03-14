@@ -6,8 +6,9 @@ A simple web application server written in C.
 * [x] Reactor(partly)
 * [x] Coroutine
 * [x] HttpCodec
+* [x] Logger
 * [ ] ThreadPool
-* [ ] WsgiCodec
+* [ ] WsgiCodec(ongoing)
 * [ ] mempool
 
 ### Dependency
