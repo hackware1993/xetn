@@ -363,7 +363,7 @@ ENTRY_ST:
 	}
 ENTRY_EOL:
 	nleft = (len - pindex >= 2) ? 2 : len - pindex;
-	strncpy(buf + pindex, str, nleft);
+	strncpy(buf + pindex, CRLF, nleft);
 	pindex += nleft;
 	//ret = Buffer_putArr(dest, CRLF, 0, 2);
 	if(nleft ^ 2) {
