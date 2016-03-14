@@ -6,6 +6,8 @@
 #define FORMAT_GMT "%a, %d %b %Y %H:%M:%S GMT"
 #define FORMAT_LOC "%a, %d %b %Y %H:%M:%S LOC"
 
+#define FORMAT_TS  "%Y-%m-%d %H:%M:%S"
+
 #define PRIVATE static
 
 PRIVATE inline time_t TIME_DIFF() {
@@ -39,6 +41,12 @@ void DateTime_formatLoc(time_t* time, char* res) {
 	struct tm loctime;
 	localtime_r(time, &loctime);
 	strftime(res, 30, FORMAT_LOC, &loctime);
+}
+
+void DateTime_formatTimeStamp(time_t* time, char* res) {
+	struct tm localtime;
+	localtime_r(time, &localtime);
+	strftime(res, 20, FORMAT_TS, &localtime);
 }
 
 int DateTime_getDay(time_t* time) {
