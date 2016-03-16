@@ -9,6 +9,7 @@
 #include <string.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <strings.h>
 
 #define PRIVATE static
 #define TCP 0x3a706374
@@ -113,7 +114,7 @@ int32_t SocketOption_setKeepAlive(Handler sock, uint32_t opt) {
 	return ret;
 }
 
-int32_t SocketOption_setReuseAddr(Handler sock, uint32_t opt) {
+inline int32_t SocketOption_setReuseAddr(Handler sock, uint32_t opt) {
 	fd_t fd = sock->fileno;
 	int32_t ret = setsockopt(fd, SOL_SOCKET, SO_REUSEADDR,
 			&opt, (socklen_t)sizeof(opt));
@@ -221,6 +222,7 @@ PRIVATE __addr_t* __addr_get(__addr_t* res, const char* addr) {
 /* internal sockaddr getting function */
 PRIVATE SockAddr __sockaddr_get(SockAddr addr, __addr_t* url) {
 	struct addrinfo hints;
+	bzero(&hints, sizeof(struct addrinfo));
 	struct addrinfo* res;
 	hints.ai_flags = AI_PASSIVE
 	               | AI_NUMERICHOST
