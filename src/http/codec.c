@@ -908,7 +908,7 @@ EXIT_ERROR:
 	return EXIT_ERROR;
 }
 
-int8_t HttpCodec_decode(HttpCodec decoder, char* buf, uint32_t len) {
+int8_t HttpCodec_decode(HttpCodec decoder, char* buf, uint32_t* len) {
 	uint32_t pos = 0;
 	int8_t   ret;
 	switch(decoder->state) {
@@ -917,7 +917,7 @@ int8_t HttpCodec_decode(HttpCodec decoder, char* buf, uint32_t len) {
 			decoder->state = STATE_DOING;
 		case STATE_DOING:
 			while(decoder->phaseHandler) {
-				switch(ret = decoder->phaseHandler(decoder, buf, &pos, len)) {
+				switch(ret = decoder->phaseHandler(decoder, buf, &pos, *len)) {
 					case EXIT_ERROR:
 						decoder->state = STATE_ERROR;
 					case EXIT_PEND:
@@ -926,6 +926,7 @@ int8_t HttpCodec_decode(HttpCodec decoder, char* buf, uint32_t len) {
 			}
 			decoder->conn->data = decoder->temp.ptr;
 			decoder->state = STATE_DONE;
+			*len = pos;
 			return EXIT_DONE;
 		case STATE_DONE:  return EXIT_DONE;
 		case STATE_ERROR: return EXIT_ERROR;

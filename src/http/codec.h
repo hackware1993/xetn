@@ -51,6 +51,6 @@ void HttpCodec_close(HttpCodec);
  *	 EXIT_DONE : 1
  */
 int8_t HttpCodec_encode(HttpCodec, char*, uint32_t*);
-int8_t HttpCodec_decode(HttpCodec, char*, uint32_t);
+int8_t HttpCodec_decode(HttpCodec, char*, uint32_t*);
 
 #endif // _HTTP_PARSER_H_

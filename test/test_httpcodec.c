@@ -59,14 +59,18 @@ void test_codec_req(void** state) {
 	int off = 0;
 	int len = strlen(STR_REQ);
 	int ret;
+	int n;
 
 	while(off < len) {
-		if(len - off > 64) {
-			ret = HttpCodec_decode(&decoder, STR_REQ + off, 64);
-			off += 64;
+		if((n = len - off) > 64) {
+			n = 64;
+			ret = HttpCodec_decode(&decoder, STR_REQ + off, &n);
+			assert_int_equal(n, 64);
+			off += n;
 			assert_int_equal(ret, EXIT_PEND);
 		} else {
-			ret = HttpCodec_decode(&decoder, STR_REQ + off, len - off);
+			ret = HttpCodec_decode(&decoder, STR_REQ + off, &n);
+			assert_int_equal(n, len - off);
 			off = len;
 			assert_int_equal(ret, EXIT_DONE);
 		}
@@ -95,15 +99,19 @@ void test_codec_res(void** state) {
 
 	int off = 0;
 	int len = strlen(STR_RES);
+	int n;
 	int ret;
 
 	while(off < len) {
-		if(len - off > 64) {
-			ret = HttpCodec_decode(&decoder, STR_RES + off, 64);
-			off += 64;
+		if((n = len - off) > 64) {
+			n = 64;
+			ret = HttpCodec_decode(&decoder, STR_RES + off, &n);
+			assert_int_equal(n, 64);
+			off += n;
 			assert_int_equal(ret, EXIT_PEND);
 		} else {
-			ret = HttpCodec_decode(&decoder, STR_RES + off, len - off);
+			ret = HttpCodec_decode(&decoder, STR_RES + off, &n);
+			assert_int_equal(n, len - off);
 			off = len;
 			assert_int_equal(ret, EXIT_DONE);
 		}
