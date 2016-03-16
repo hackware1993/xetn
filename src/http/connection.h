@@ -58,7 +58,7 @@ typedef struct http_connection {
 #define        HttpConnection_getStatusCode(res)  (res)->code
 #define        HttpConnection_close(conn) \
 	if((conn)->data) free((conn)->data)
-HttpConnection HttpConnection_init(HttpConnection);
+HttpConnection HttpConnection_init(HttpConnection, http_type_t);
 const char*    HttpConnection_getMethod(HttpConnection);
 const char*    HttpConnection_getVersion(HttpConnection);
 const char*    HttpConnection_getHeader(HttpConnection, const char*);

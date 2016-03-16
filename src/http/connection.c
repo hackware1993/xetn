@@ -10,7 +10,8 @@
 
 extern http_header_t HttpHeader_find(uint32_t, uint32_t);
 
-HttpConnection HttpConnection_init(HttpConnection conn) {
+HttpConnection HttpConnection_init(HttpConnection conn, http_type_t type) {
+	conn->type = type;
 	conn->ver  = 0;
 	conn->code = 0;
 	conn->str  = 0;

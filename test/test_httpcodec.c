@@ -52,9 +52,7 @@ int test_teardown(void** state) {
 void test_codec_req(void** state) {
 	http_codec_t decoder, encoder;
 	http_connection_t conn;
-
-	HttpConnection_init(&conn);
-	conn.type = HTTP_REQ;
+	HttpConnection_init(&conn, HTTP_REQ);
 
 	HttpCodec_init(&decoder, &conn);
 
@@ -91,9 +89,7 @@ void test_codec_req(void** state) {
 void test_codec_res(void** state) {
 	http_codec_t decoder, encoder;
 	http_connection_t conn;
-
-	HttpConnection_init(&conn);
-	conn.type = HTTP_RES;
+	HttpConnection_init(&conn, HTTP_RES);
 
 	HttpCodec_init(&decoder, &conn);
 
