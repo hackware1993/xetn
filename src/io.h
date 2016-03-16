@@ -54,7 +54,7 @@ static inline int IO_waitEvent(Handler h, uint32_t to) {
 	struct timeval tv;
 	if(to >= 0) {
 		int sec  = to / 1000;
-		int usec = (to - sec) * 1000;
+		int usec = (to - sec * 1000) * 1000;
 		tv.tv_sec  = sec;
 		tv.tv_usec = usec;
 		timeout = &tv;
