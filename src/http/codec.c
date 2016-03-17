@@ -29,6 +29,7 @@ PRIVATE inline MemBlock MemBlock_init(MemBlock m, uint32_t s) {
 	m->len = 0;
 	m->last = 0;
 	m->size = s;
+	return m;
 }
 
 PRIVATE inline void MemBlock_putChar(MemBlock m, char ch) {
@@ -221,6 +222,7 @@ int8_t encodeInitPhase(HttpCodec encoder,
 	} else {
 		encoder->phaseHandler = encodeResStatusPhase;
 	}
+	return EXIT_DONE;
 }
 int8_t encodeReqStatusPhase(HttpCodec encoder,
 		char* buf, uint32_t* pos, uint32_t len) {
@@ -925,6 +927,7 @@ int8_t HttpCodec_decode(HttpCodec decoder, char* buf, uint32_t* len) {
 				}
 			}
 			decoder->conn->data = decoder->temp.ptr;
+			decoder->temp.ptr = NULL;
 			decoder->state = STATE_DONE;
 			*len = pos;
 			return EXIT_DONE;
