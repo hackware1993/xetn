@@ -49,7 +49,7 @@ static inline ssize_t IO_readSpec(Handler h, void* buf, size_t len) {
 	return len;
 }
 
-static inline int IO_waitEvent(Handler h, uint32_t to) {
+static inline int IO_waitEvent(Handler h, int32_t to) {
 	struct timeval* timeout = NULL;
 	struct timeval tv;
 	if(to >= 0) {
@@ -66,14 +66,14 @@ static inline int IO_waitEvent(Handler h, uint32_t to) {
 	return select(fd + 1, &set, NULL, NULL, timeout);
 }
 
-static inline ssize_t IO_timedRead(Handler h, void* buf, size_t len, uint32_t to) {
+static inline ssize_t IO_timedRead(Handler h, void* buf, size_t len, int32_t to) {
 	switch(IO_waitEvent(h, to)) {
 		case 0:  errno = ETIMEDOUT;
 		case -1: return -1;
 	}
 	return IO_read(h, buf, len);
 } 
-static inline ssize_t IO_timedWrite(Handler h, void* buf, size_t len, uint32_t to) {
+static inline ssize_t IO_timedWrite(Handler h, void* buf, size_t len, int32_t to) {
 	switch(IO_waitEvent(h, to)) {
 		case 0:  errno = ETIMEDOUT;
 		case -1: return -1;
@@ -81,7 +81,7 @@ static inline ssize_t IO_timedWrite(Handler h, void* buf, size_t len, uint32_t t
 	return IO_write(h, buf, len);
 }
 
-static inline ssize_t IO_timedReadSpec(Handler h, void* buf, size_t len, uint32_t to) {
+static inline ssize_t IO_timedReadSpec(Handler h, void* buf, size_t len, int32_t to) {
 	switch(IO_waitEvent(h, to)) {
 		case 0:  errno = ETIMEDOUT;
 		case -1: return -1;
@@ -89,7 +89,7 @@ static inline ssize_t IO_timedReadSpec(Handler h, void* buf, size_t len, uint32_
 	return IO_readSpec(h, buf, len);
 }
 
-static inline ssize_t IO_timedWriteSpec(Handler h, void* buf, size_t len, uint32_t to) {
+static inline ssize_t IO_timedWriteSpec(Handler h, void* buf, size_t len, int32_t to) {
 	switch(IO_waitEvent(h, to)) {
 		case 0:  errno = ETIMEDOUT;
 		case -1: return -1;
