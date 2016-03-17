@@ -15,12 +15,22 @@ typedef enum pollopt {
 #define WATCHER_MAX  65536
 #define WATCHER_INIT 4096
 
+#if defined(linux)
 #include "pollimpl/epoll.h"
+#elif defined(__FreeBSD__)
+#include "pollimpl/kqueue.h"
+#endif
+
+#define Watcher_swapEvent(wt, ev) \
+{ \
+	(wt)->old_event = (wt)->event; \
+	(wt)->event = (ev); \
+}
 
 PRIVATE inline void __auto_append(Reactor re, fd_t fd) {
 	uint32_t len = re->wl;
 	while(len <= fd) {
-		len *= 2;
+		len <<= 1;
 	}
 
 	len = (len > WATCHER_MAX) ? WATCHER_MAX : len;
@@ -32,10 +42,6 @@ PRIVATE inline void __auto_append(Reactor re, fd_t fd) {
 /* public function for reactor & watcher */
 Reactor Reactor_init(Reactor re) {
 	int i;
-	for(i = 0; i < MAXEVENT; ++i) {
-		re->io_list[i] = NULL;
-		re->er_list[i] = NULL;
-	}
 	re->wl = WATCHER_INIT;
 	re->ws = (Watcher*)calloc(WATCHER_INIT, sizeof(Watcher));
 	/* create internal poll handler */
@@ -60,42 +66,31 @@ void Reactor_close(Reactor re) {
 	/* reactor won't free re itself */
 }
 
-void Reactor_loopOnce(Reactor re, int32_t to) {
-	Watcher wt = NULL;
-	Watcher* pios = re->io_list;
-	Watcher* pers = re->er_list;
-	uint8_t ios_len = 0, err_len = 0;
-	poll_wait(&re->poll, to, pios, &ios_len, pers, &err_len);
-	/* error watcher has the highest priority */
-	for(int i = 0; i < err_len; ++i) {
-		wt = pers[i];
-		wt->event = EV_ERROR;
-		wt->onError(wt);
-	}
-
-	for(int i = 0; i < ios_len; ++i) {
-		wt = pios[i];
-		wt->onProcess(wt);
-	}
-}
-
 void Reactor_loop(Reactor re, int32_t to) {
-	Watcher wt = NULL;
-	Watcher* pios = re->io_list;
-	Watcher* pers = re->er_list;
-	uint8_t ios_len = 0, err_len = 0;
+	Watcher  wt  = NULL;
+	Watcher* ws  = re->ws;
+	fd_t     ios[MAXEVENT];
+	uint8_t pios = 0, perr = 0;
 	while(1) {
-		poll_wait(&re->poll, to, pios, &ios_len, pers, &err_len);
+		poll_wait(&re->poll, to, ios, &pios, &perr);
 		/* error watcher has the highest priority */
-		for(int i = 0; i < err_len; ++i) {
-			wt = pers[i];
-			wt->event = EV_ERROR;
+		for(int i = perr; i < MAXEVENT; ++i) {
+			wt = ws[ios[i]];
+			Watcher_swapEvent(wt, XETN_ERROR);
 			wt->onError(wt);
 		}
 
-		for(int i = 0; i < ios_len; ++i) {
-			wt = pios[i];
-			wt->onProcess(wt);
+		for(int i = 0; i < pios; ++i) {
+			wt = ws[ios[i]];
+			switch(wt->event) {
+				case XETN_READ:
+					wt->onRead(wt);
+					break;
+				case XETN_WRITE:
+					wt->onWrite(wt);
+					break;
+			}
+			//wt->onProcess(wt);
 		}
 	}
 }
@@ -128,6 +123,6 @@ void Watcher_modEvent(Watcher wt, event_t ev) {
 		return;
 	}
 	Handler poll = &wt->host->poll;
-	wt->event = ev;
-	poll_ctl(poll, P_MOD, &wt->handler);
+	Watcher_swapEvent(wt, ev);
+	poll_ctl(poll, P_MOD, (Handler)wt);
 }

@@ -15,11 +15,11 @@ typedef enum wtype {
 
 /* only E_TIME can be set with others */
 typedef enum event {
-	EV_NONE  = 0x00,
-	EV_TIME  = 0x01,
-	EV_READ  = 0x02,
-	EV_WRITE = 0x04,
-	EV_ERROR = 0x08
+	XETN_NONE  = 0x00,
+	XETN_TIME  = 0x01,
+	XETN_READ  = 0x02,
+	XETN_WRITE = 0x04,
+	XETN_ERROR = 0x08,
 } event_t;
 
 struct reactor;
@@ -31,10 +31,12 @@ typedef void (*watcher_cb)(struct watcher*);
 typedef struct watcher {
 	handler_t handler;
 	wtype_t   type;
+	event_t   old_event;
 	event_t   event;
 	struct reactor* host;
 	// timer_t timer;
-	watcher_cb onProcess;
+	watcher_cb onRead;
+	watcher_cb onWrite;
 	watcher_cb onError;
 	watcher_cb onClose;
 } watcher_t, *Watcher;
@@ -46,19 +48,20 @@ typedef struct reactor {
 	/* length of watcher array */
 	uint32_t  wl;
 	int32_t   err_code;
-	Watcher   io_list[MAXEVENT];
-	Watcher   er_list[MAXEVENT];
 } reactor_t, *Reactor;
 
 #define Watcher_init(w, t, h, e) \
 	(w)->type = (t);             \
 	(w)->handler = *(h);         \
-	(w)->event = (e)
+	(w)->event = (e);            \
+	(w)->old_event = XETN_NONE
 
 #define Watcher_bindHost(w, h) \
 	(w)->host = (h)
-#define Watcher_bindOnProcess(w, fn) \
-	(w)->onProcess = (fn)
+#define Watcher_bindOnRead(w, fn) \
+	(w)->onRead = (fn)
+#define Watcher_bindOnWrite(w, fn) \
+	(w)->onWrite = (fn)
 #define Watcher_bindOnError(w, fn) \
 	(w)->onError = (fn)
 #define Watcher_bindOnClose(w, fn) \
@@ -81,7 +84,7 @@ void    Reactor_close(Reactor);
 void    Reactor_register(Reactor, Watcher);
 void    Reactor_unregister(Reactor, Watcher);
 // TODO use tstamp_t to replace int32_t
-void    Reactor_loopOnce(Reactor, int32_t);
+//void    Reactor_loopOnce(Reactor, int32_t);
 void    Reactor_loop(Reactor, int32_t);
 
 #endif // _REACTOR_H_
