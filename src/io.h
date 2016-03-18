@@ -2,7 +2,8 @@
 #define _IO_H_
 
 /**
- * Basic wrapper of low level io api
+ * Basic wrapper for low level IO api
+ * Compatibility: Linux & FreeBSD
  */
 
 #include <unistd.h>
@@ -12,6 +13,16 @@
 #include <sys/select.h>
 #include <sys/types.h>
 
+/**
+ * write buffer to the target handler
+ * Parameters:
+ *   - h   : target handler
+ *   - buf : the buffer in which content stored
+ *   - len : the length of content, and the returned length indicates how many bytes has been written
+ * Return:
+ *   -1 : an error occur, can be EAGAIN and others, judge with errno
+ *   0  : success
+ */
 static inline int IO_write(Handler h, void* buf, size_t* len) {
 	int n = write(h->fileno, buf, *len);
 	switch(n) {
@@ -22,6 +33,16 @@ static inline int IO_write(Handler h, void* buf, size_t* len) {
 	return 0;
 }
 
+/**
+ * read buffer from the target handler
+ * Parameters:
+ *   - h   : target handler
+ *   - buf : the buffer in which content stored
+ *   - len : the length of content, and the returned length indicates how many bytes has been read
+ * Return:
+ *   -1 : an error occur, can be EAGAIN and others, judge with errno
+ *   0  : success
+ */
 static inline int IO_read(Handler h, void* buf, size_t* len) {
 	int n = read(h->fileno, buf, *len);
 	switch(n) {
@@ -34,6 +55,16 @@ static inline int IO_read(Handler h, void* buf, size_t* len) {
 	return 0;
 }
 
+/**
+ * write buffer to the target handler with specific length
+ * Parameters:
+ *   - h   : target handler
+ *   - buf : the buffer in which content stored
+ *   - len : the length of content, and the returned length indicates how many bytes has been written
+ * Return:
+ *   -1 : an error occur, can be EAGAIN and others, judge with errno
+ *   0  : success
+ */
 static inline int IO_writeSpec(Handler h, void* buf, size_t* len) {
 	int    n      = 0;
 	size_t total  = *len;
@@ -51,6 +82,17 @@ static inline int IO_writeSpec(Handler h, void* buf, size_t* len) {
 	return 0;
 }
 
+/**
+ * read buffer from the target handler with specific length
+ * Parameters:
+ *   - h   : target handler
+ *   - buf : the buffer in which content stored
+ *   - len : the length of content, and the returned length indicates how many bytes has been read
+ * Return:
+ *   -1 : an error occur, can be EAGAIN and others, judge with errno
+ *   0  : success
+ *   1  : end of file (and RDHUP to stream socket)
+ */
 static inline int IO_readSpec(Handler h, void* buf, size_t* len) {
 	int    n     = 0;
 	size_t total = *len;
@@ -88,13 +130,16 @@ static inline int IO_waitEvent(Handler h, int32_t to) {
 	return select(fd + 1, &set, NULL, NULL, timeout);
 }
 
-static inline ssize_t IO_timedRead(Handler h, void* buf, size_t* len, int32_t to) {
-	switch(IO_waitEvent(h, to)) {
-		case 0:  errno = ETIMEDOUT;
-		case -1: return -1;
-	}
-	return IO_read(h, buf, len);
-} 
+/**
+ * write buffer to the target handler with specific length and timeout (not very accurate)
+ * Parameters:
+ *   - h   : target handler
+ *   - buf : the buffer in which content stored
+ *   - len : the length of content, and the returned length indicates how many bytes has been written
+ * Return:
+ *   -1 : an error occur, can be EAGAIN and others, judge with errno
+ *   0  : success
+ */
 static inline ssize_t IO_timedWrite(Handler h, void* buf, size_t* len, int32_t to) {
 	switch(IO_waitEvent(h, to)) {
 		case 0:  errno = ETIMEDOUT;
@@ -103,20 +148,59 @@ static inline ssize_t IO_timedWrite(Handler h, void* buf, size_t* len, int32_t t
 	return IO_write(h, buf, len);
 }
 
-static inline ssize_t IO_timedReadSpec(Handler h, void* buf, size_t* len, int32_t to) {
+/**
+ * read buffer from the target handler with specific length and timeout (not very accurate)
+ * Parameters:
+ *   - h   : target handler
+ *   - buf : the buffer in which content stored
+ *   - len : the length of content, and the returned length indicates how many bytes has been read
+ * Return:
+ *   -1 : an error occur, can be EAGAIN and others, judge with errno
+ *   0  : success
+ */
+static inline ssize_t IO_timedRead(Handler h, void* buf, size_t* len, int32_t to) {
 	switch(IO_waitEvent(h, to)) {
 		case 0:  errno = ETIMEDOUT;
 		case -1: return -1;
 	}
-	return IO_readSpec(h, buf, len);
-}
+	return IO_read(h, buf, len);
+} 
 
+/**
+ * write buffer to the target handler with specific length and timeout (not very accurate)
+ * Parameters:
+ *   - h   : target handler
+ *   - buf : the buffer in which content stored
+ *   - len : the length of content, and the returned length indicates how many bytes has been written
+ * Return:
+ *   -1 : an error occur, can be EAGAIN and others, judge with errno
+ *   0  : success
+ */
 static inline ssize_t IO_timedWriteSpec(Handler h, void* buf, size_t* len, int32_t to) {
 	switch(IO_waitEvent(h, to)) {
 		case 0:  errno = ETIMEDOUT;
 		case -1: return -1;
 	}
 	return IO_writeSpec(h, buf, len);
+}
+
+/**
+ * read buffer from the target handler with specific length and timeout (not very accurate)
+ * Parameters:
+ *   - h   : target handler
+ *   - buf : the buffer in which content stored
+ *   - len : the length of content, and the returned length indicates how many bytes has been read
+ * Return:
+ *   -1 : an error occur, can be EAGAIN and others, judge with errno
+ *   0  : success
+ *   1  : end of file (and RDHUP to stream socket)
+ */
+static inline ssize_t IO_timedReadSpec(Handler h, void* buf, size_t* len, int32_t to) {
+	switch(IO_waitEvent(h, to)) {
+		case 0:  errno = ETIMEDOUT;
+		case -1: return -1;
+	}
+	return IO_readSpec(h, buf, len);
 }
 
 #endif //_IO_H_
