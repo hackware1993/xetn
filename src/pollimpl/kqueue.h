@@ -73,7 +73,8 @@ PRIVATE int poll_wait(Handler poll, int32_t to, fd_t* ios, uint8_t* ios_index, u
 	struct kevent* pc;
 	struct kevent* pe = events + count;
 	for(pc = events; pc < pe; ++pc) {
-		if(pc->flags & (EV_ERROR | EV_EOF)) {
+		/* let onRead to process EV_EOF */
+		if(pc->flags & EV_ERROR) {
 			ios[ie--] = pc->ident;
 		} else if(pc->filter & (EVFILT_READ | EVFILT_WRITE)) {
 			ios[io++] = pc->ident;
