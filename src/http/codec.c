@@ -19,77 +19,6 @@
 #define HASH(hash, ch) \
 	(hash) = ((hash) << 7) + ((hash) << 1) + (hash) + (ch)
 
-#define MemBlock_free(m) free((m)->ptr)
-#define MemBlock_rollback(m) (m)->len = (m)->last
-
-/* memory block is a special data structure */
-/* it can expand automatically when needed */
-PRIVATE inline MemBlock MemBlock_init(MemBlock m, uint32_t s) {
-	m->ptr = malloc(s);
-	m->len = 0;
-	m->last = 0;
-	m->size = s;
-	return m;
-}
-
-PRIVATE inline void MemBlock_putChar(MemBlock m, char ch) {
-	uint32_t s   = m->size;
-	uint32_t len = m->len;
-	if(len >= s) {
-		s <<= 1;
-		m->ptr = realloc(m->ptr, s);
-		m->size = s;
-	}
-	((char*)m->ptr)[len++] = ch;
-	m->len = len;
-}
-
-PRIVATE inline void MemBlock_putStrN(MemBlock m, const char* str, size_t l) {
-	uint32_t s = m->size;
-	uint32_t len = m->len;
-	uint32_t n;
-	if((n = len + l) >= s) {
-		while(n >= s) {
-			s <<= 1;
-		}
-		m->ptr = realloc(m->ptr, s);
-		m->size = s;
-	}
-	memcpy(m->ptr + len, str, l);
-	m->len = len + l;
-}
-
-PRIVATE inline void MemBlock_putInt4(MemBlock m, uint32_t n) {
-	uint32_t s = m->size;
-	uint32_t len = m->len;
-	if(len >= s) {
-		s <<= 1;
-		m->ptr = realloc(m->ptr, s);
-		m->size = s;
-	}
-	*(uint32_t*)(m->ptr + len) = n;
-	m->len = len + sizeof(n);
-}
-
-PRIVATE inline uint32_t MemBlock_getStr(MemBlock m) {
-	uint32_t res = m->last;
-	uint32_t s = m->size;
-	uint32_t len = m->len;
-	if(len >= s) {
-		m->ptr = realloc(m->ptr, s << 1);
-	}
-	((char*)m->ptr)[len++] = '\0';
-	m->len = len;
-	m->last = len;
-	return res;
-}
-
-PRIVATE inline uint32_t MemBlock_getStruct(MemBlock m) {
-	uint32_t res = m->last;
-	m->last = m->len;
-	return res;
-}
-
 typedef struct hash_pair {
 	int32_t hash;
 	int32_t id;
@@ -150,13 +79,9 @@ http_status_t HttpStatus_find(int32_t num) {
 	}
 	return res;
 }
-enum {
-	REQL_METHOD, REQL_PATH, REQL_VER, REQL_EOL,
-};
+enum { REQL_METHOD, REQL_PATH, REQL_VER, REQL_EOL, };
 
-enum {
-	RESL_VER, RESL_ST, RESL_DESC, RESL_EOL,
-};
+enum { RESL_VER, RESL_ST, RESL_DESC, RESL_EOL, };
 
 enum {
 	FLD_INIT,
@@ -170,10 +95,9 @@ HttpCodec HttpCodec_init(HttpCodec codec, HttpConnection conn) {
 	codec->conn  = conn;
 	codec->hash  = 0;
 	codec->is_ext = 0;
-	MemBlock_init(&codec->temp, 1024);
+	MemBlock_clear(&codec->temp);
+	//MemBlock_init(&codec->temp, 1024);
 	/* keep 0 as the default index which represents NULL */
-	codec->temp.len = 1;
-	codec->temp.last = 1;
 	return codec;
 }
 
@@ -213,8 +137,8 @@ int8_t encodeReqStatusPhase(HttpCodec, char*, uint32_t*, uint32_t);
 int8_t encodeResStatusPhase(HttpCodec, char*, uint32_t*, uint32_t);
 int8_t encodeFieldPhase    (HttpCodec, char*, uint32_t*, uint32_t);
 
-int8_t encodeInitPhase(HttpCodec encoder,
-		char* buf, uint32_t* pos, uint32_t len) {
+int8_t encodeInitPhase(HttpCodec encoder, char* buf, uint32_t* pos, uint32_t len) {
+	MemBlock_init(&encoder->temp, 1024);
 	encoder->cursor = 0;
 	encoder->step = 0;
 	if(encoder->conn->type ^ HTTP_RES) {
@@ -224,8 +148,7 @@ int8_t encodeInitPhase(HttpCodec encoder,
 	}
 	return EXIT_DONE;
 }
-int8_t encodeReqStatusPhase(HttpCodec encoder,
-		char* buf, uint32_t* pos, uint32_t len) {
+int8_t encodeReqStatusPhase(HttpCodec encoder, char* buf, uint32_t* pos, uint32_t len) {
 	HttpConnection conn = encoder->conn;
 	MemBlock       temp = &encoder->temp;
 	uint32_t pindex = *pos;
@@ -262,7 +185,7 @@ ENTRY_METHOD:
 		goto EXIT_PEND;
 	}
 ENTRY_PATH:
-	str = (const char*)(conn->data + conn->str);
+	str = (const char*)(conn->data.ptr + conn->str);
 	slen = strlen(str);
 	nleft = (len - pindex >= slen) ? slen : len - pindex;
 	strncpy(buf + pindex, str, nleft);
@@ -316,8 +239,7 @@ EXIT_ERROR:
 	return EXIT_ERROR;
 }
 
-int8_t encodeResStatusPhase(HttpCodec encoder,
-		char* buf, uint32_t* pos, uint32_t len) {
+int8_t encodeResStatusPhase(HttpCodec encoder, char* buf, uint32_t* pos, uint32_t len) {
 	HttpConnection conn = encoder->conn;
 	MemBlock temp = &encoder->temp;
 	uint32_t pindex = *pos;
@@ -387,8 +309,7 @@ EXIT_ERROR:
 	return EXIT_ERROR;
 }
 
-int8_t encodeFieldPhase(HttpCodec encoder,
-		char* buf, uint32_t* pos, uint32_t len) {
+int8_t encodeFieldPhase(HttpCodec encoder, char* buf, uint32_t* pos, uint32_t len) {
 	HttpConnection conn = encoder->conn;
 	MemBlock temp = &encoder->temp;
 	uint32_t pindex = *pos;
@@ -397,7 +318,7 @@ int8_t encodeFieldPhase(HttpCodec encoder,
 	uint8_t is_ext = encoder->is_ext;
 	/* temporary variable */
 	uint32_t nleft;
-	void*       data   = conn->data;
+	void*       data   = conn->data.ptr;
 	uint32_t*   fields = conn->fields;
 	const char* pkey, * pval;
 	uint32_t    klen,   vlen;
@@ -555,8 +476,11 @@ int8_t HttpCodec_encode(HttpCodec encoder, char* buf, uint32_t* len) {
 	}
 	return EXIT_ERROR;
 }
-int8_t decodeInitPhase(HttpCodec decoder,
-		char* buf, uint32_t* pos, uint32_t len) {
+int8_t decodeInitPhase(HttpCodec decoder, char* buf, uint32_t* pos, uint32_t len) {
+	decoder->temp = decoder->conn->data;
+	//MemBlock_bind(&decoder->temp, decoder->conn->data, INIT_DATA_SIZE);
+	decoder->temp.len = 1;
+	decoder->temp.last = 1;
 	decoder->cursor = HTTP_HEADER_NUM;
 	decoder->step = 0;
 	if(decoder->conn->type ^ HTTP_RES) {
@@ -567,8 +491,7 @@ int8_t decodeInitPhase(HttpCodec decoder,
 	return EXIT_DONE;
 }
 
-int8_t decodeReqStatusPhase(HttpCodec decoder,
-		char* buf, uint32_t* pos, uint32_t len) {
+int8_t decodeReqStatusPhase(HttpCodec decoder, char* buf, uint32_t* pos, uint32_t len) {
 	/* local variables for data inside HttpEncoder */
 	HttpConnection req = decoder->conn;
 	MemBlock temp = &decoder->temp;
@@ -664,8 +587,7 @@ EXIT_ERROR:
 	return EXIT_ERROR;
 }
 
-int8_t decodeResStatusPhase(HttpCodec decoder,
-		char* buf, uint32_t* pos, uint32_t len) {
+int8_t decodeResStatusPhase(HttpCodec decoder, char* buf, uint32_t* pos, uint32_t len) {
 	/* local variables for data inside HttpEncoder */
 	HttpConnection res = decoder->conn;
 	MemBlock temp = &decoder->temp;
@@ -758,8 +680,7 @@ EXIT_ERROR:
 	return EXIT_ERROR;
 }
 
-int8_t decodeFieldPhase(HttpCodec decoder,
-		char* buf, uint32_t* pos, uint32_t len) {
+int8_t decodeFieldPhase(HttpCodec decoder, char* buf, uint32_t* pos, uint32_t len) {
 	/* local variable for data inside HttpDecoder */
 	HttpConnection conn = decoder->conn;
 	MemBlock temp = &decoder->temp;
@@ -926,9 +847,9 @@ int8_t HttpCodec_decode(HttpCodec decoder, char* buf, uint32_t* len) {
 						return ret;
 				}
 			}
-			decoder->conn->data = decoder->temp.ptr;
-			decoder->temp.ptr = NULL;
 			decoder->state = STATE_DONE;
+			MemBlock_clear(&decoder->temp);
+			//decoder->temp.ptr = NULL;
 			*len = pos;
 			return EXIT_DONE;
 		case STATE_DONE:  return EXIT_DONE;

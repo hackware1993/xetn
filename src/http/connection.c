@@ -15,7 +15,8 @@ HttpConnection HttpConnection_init(HttpConnection conn, http_type_t type) {
 	conn->ver  = 0;
 	conn->code = 0;
 	conn->str  = 0;
-	conn->data = NULL;
+	//conn->data = malloc(INIT_DATA_SIZE);
+	MemBlock_init(&conn->data, INIT_DATA_SIZE);
 	uint32_t* pfield = conn->fields;
 	uint32_t* pend   = pfield + HEADER_MAX;
 	while(pfield < pend) {
@@ -33,6 +34,7 @@ const char* HttpConnection_getVersion(HttpConnection conn) {
 }
 
 const char* HttpConnection_getHeader(HttpConnection conn, const char* name) {
+	const char* data = (const char*)conn->data.ptr;
 	uint32_t hash = 0;
 	const char* str = name;
 	while(*str) {
@@ -42,14 +44,14 @@ const char* HttpConnection_getHeader(HttpConnection conn, const char* name) {
 	index = HttpHeader_find(index, hash);
 	const char* res = NULL;
 	if(index != HH_INVALID) {
-		res = conn->data + conn->fields[index];
+		res = data + conn->fields[index];
 	} else {
 		uint32_t* pf = conn->fields + HTTP_HEADER_NUM;
 		uint32_t* pend = conn->fields + HEADER_MAX;
 		while(pf < pend && *pf) {
-			ExtraField ef = conn->data + *pf++;
-			if(ef->hash == hash && strcmp(conn->data + ef->key, name) == 0) {
-				res = conn->data + ef->value;
+			ExtraField ef = (ExtraField)(data + *pf++);
+			if(ef->hash == hash && strcmp(data + ef->key, name) == 0) {
+				res = data + ef->value;
 				break;
 			}
 		}

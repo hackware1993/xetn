@@ -1,6 +1,7 @@
 #ifndef _HTTP_CONNECTION_
 #define _HTTP_CONNECTION_
 
+#include "../memblock.h"
 #include "header.h"
 #include "status.h"
 
@@ -32,6 +33,7 @@ typedef enum http_method {
 #undef XX
 
 #define HEADER_MAX 128
+#define INIT_DATA_SIZE 1024
 
 typedef enum http_type {
 	HTTP_REQ,
@@ -45,19 +47,19 @@ typedef struct extra_field {
 } extra_field_t, *ExtraField;
 
 typedef struct http_connection {
-	unsigned    type : 2;
-	unsigned    ver  : 2;
-	unsigned    code : 12;
+	unsigned    type :2;
+	unsigned    ver  :2;
+	unsigned    code :12;
 	uint32_t    str;
 	uint32_t    fields[HEADER_MAX];
-	void*       data;
+	mem_block_t data;
+	//void*       data;
 } http_connection_t, *HttpConnection;
 
 #define        HttpConnection_getMethodCode(req)  (req)->code
 #define        HttpConnection_getVersionCode(res) (res)->ver
 #define        HttpConnection_getStatusCode(res)  (res)->code
-#define        HttpConnection_close(conn) \
-	if((conn)->data) free((conn)->data)
+#define        HttpConnection_close(conn)         MemBlock_free(&(conn)->data)
 HttpConnection HttpConnection_init(HttpConnection, http_type_t);
 const char*    HttpConnection_getMethod(HttpConnection);
 const char*    HttpConnection_getVersion(HttpConnection);
