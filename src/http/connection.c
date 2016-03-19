@@ -33,6 +33,10 @@ const char* HttpConnection_getVersion(HttpConnection conn) {
 	return VERSION_NAME[conn->ver];
 }
 
+const char* HttpConnection_getPath(HttpConnection conn) {
+	return (const char*)(conn->data.ptr + conn->str);
+}
+
 const char* HttpConnection_getHeader(HttpConnection conn, const char* name) {
 	const char* data = (const char*)conn->data.ptr;
 	uint32_t hash = 0;
