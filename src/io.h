@@ -26,7 +26,9 @@
 static inline int IO_write(Handler h, void* buf, size_t* len) {
 	int n = write(h->fileno, buf, *len);
 	switch(n) {
-		case -1: return -1;
+		case -1:
+			*len = 0;
+			return -1;
 		default:
 			*len = n;
 	}
@@ -47,8 +49,12 @@ static inline int IO_read(Handler h, void* buf, size_t* len) {
 	int n = read(h->fileno, buf, *len);
 	switch(n) {
 		/* END OF FILE */
-		case 0:  return 1;
-		case -1: return -1;
+		case 0:
+			*len = 0;
+			return 1;
+		case -1:
+			*len = 0;
+			return -1;
 		default:
 			*len = n;
 	}
