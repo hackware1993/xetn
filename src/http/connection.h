@@ -53,7 +53,6 @@ typedef struct http_connection {
 	uint32_t    str;
 	uint32_t    fields[HEADER_MAX];
 	mem_block_t data;
-	//void*       data;
 } http_connection_t, *HttpConnection;
 
 #define        HttpConnection_getMethodCode(req)  (req)->code
@@ -65,5 +64,6 @@ const char*    HttpConnection_getPath(HttpConnection);
 const char*    HttpConnection_getMethod(HttpConnection);
 const char*    HttpConnection_getVersion(HttpConnection);
 const char*    HttpConnection_getHeader(HttpConnection, const char*);
+void           HttpConnection_putHeader(HttpConnection, const char*, const char*);
 
 #endif // _HTTP_CONNECTION_

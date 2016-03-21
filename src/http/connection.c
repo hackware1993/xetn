@@ -15,14 +15,11 @@ HttpConnection HttpConnection_init(HttpConnection conn, http_type_t type) {
 	conn->ver  = 0;
 	conn->code = 0;
 	conn->str  = 0;
-	//conn->data = malloc(INIT_DATA_SIZE);
 	MemBlock_init(&conn->data, INIT_DATA_SIZE);
-	uint32_t* pfield = conn->fields;
-	uint32_t* pend   = pfield + HEADER_MAX;
-	while(pfield < pend) {
-		*pfield = 0;
-		++pfield;
-	}
+	/* NOTICE 0 is used to indicate there is no value */
+	conn->data.len  = 1;
+	conn->data.last = 1;
+	memset(conn->fields, 0, sizeof(uint32_t) * HEADER_MAX);
 }
 
 const char* HttpConnection_getMethod(HttpConnection conn) {
@@ -63,3 +60,31 @@ const char* HttpConnection_getHeader(HttpConnection conn, const char* name) {
 	return res;
 }
 
+void HttpConnection_putHeader(HttpConnection conn, const char* name, const char* val) {
+	MemBlock data = &conn->data;
+	uint32_t hash = 0;
+	const char* str = name;
+	while(*str) {
+		hash = (hash << 7) + (hash << 1) + hash + *str++;
+	}
+	uint32_t index = hash % MAGNUM;
+	index = HttpHeader_find(index, hash);
+	if(index != HH_INVALID) {
+		MemBlock_putStrN(data, val, strlen(val));
+		conn->fields[index] = MemBlock_getStr(data);
+	} else {
+		uint32_t* pf   = conn->fields + HTTP_HEADER_NUM;
+		uint32_t* pend = conn->fields + HEADER_MAX;
+		/* skip all fields already have contents */
+		while(pf < pend && *pf) { ++pf; }
+		assert(pf != pend);
+		MemBlock_putStrN(data, name, strlen(name));
+		uint32_t fld = MemBlock_getStr(data);
+		MemBlock_putStrN(data, val, strlen(val));
+		uint32_t v   = MemBlock_getStr(data);
+		MemBlock_putInt4(data, hash);
+		MemBlock_putInt4(data, fld);
+		MemBlock_putInt4(data, v);
+		*pf = MemBlock_getStruct(data);
+	}
+}
