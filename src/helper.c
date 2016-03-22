@@ -1,67 +1,98 @@
 #include "helper.h"
 #include <assert.h>
 
+enum {
+	NONE = -2,
+	LOOP =  2,
+};
+/* possible state composition for decoding: */
+/*   EXIT_ERROR + STREAM_*    -> EXIT_ERROR */
+/*   EXIT_PEND  + STREAM_PEND -> EXIT_PEND  */
+/*   EXIT_DONE  + STREAM_PEND -> EXIT_DONE  */
+/*   EXIT_PEND  + STREAM_HUP  -> EXIT_ERROR */
+/*   EXIT_DONE  + STREAM_HUP  -> EXIT_DONE  */
+/*   EXIT_PEND  + STREAM_DONE -> LOOP       */
+/*   EXIT_DONE  + STREAM_DONE -> EXIT_DONE  */
+int8_t DECODE_COMPOSE_MAP[2][5] = {
+             /* STREAM_NONE, STREAM_ERROR, STREAM_PEND, STREAM_HUP, STREAM_DONE */
+/* EXIT_PEND */{       NONE,         NONE,   EXIT_PEND, EXIT_ERROR,        LOOP},
+/* EXIT_DONE */{       NONE,         NONE,   EXIT_DONE,  EXIT_DONE,   EXIT_DONE},
+};
+/* possible state composition for encoding: */
+/*   EXIT_ERROR + STREAM_*    -> EXIT_ERROR */
+/*   EXIT_PEND  + STREAM_PEND -> EXIT_PEND  */
+/*   EXIT_DONE  + STREAM_PEND -> EXIT_PEND  */
+/*   EXIT_PEND  + STREAM_DONE -> LOOP       */
+/*   EXIT_DONE  + STREAM_DONE -> EXIT_DONE  */
+int8_t ENCODE_COMPOSE_MAP[2][5] = {
+             /* STREAM_NONE, STREAM_ERROR, STREAM_PEND, STREAM_HUP, STREAM_DONE */
+/* EXIT_PEND */{       NONE,         NONE,   EXIT_PEND,       NONE,        LOOP},
+/* EXIT_DONE */{       NONE,         NONE,   EXIT_PEND,       NONE,   EXIT_DONE},
+};
 int8_t HttpHelper_decode(HttpCodec decoder, NetStream ns, stream_state_t* state) {
 	int8_t   ret;
 	uint32_t len;
 	char*    off;
-
+	stream_state_t st = STREAM_NONE;
 	Buffer buf = NetStream_getBuf(ns);
+
 	while(1) {
-		*state = NetStream_readToBuf(ns);
-		switch(*state) {
-			case STREAM_HUP: case STREAM_ERROR:
-				return EXIT_ERROR;
-			case STREAM_PEND:
-				return EXIT_PEND;
+		st = NetStream_readToBufSpec(ns);
+		/* rewrite back the state of NetStream */
+		*state = st;
+		/* an IO error occur, the following process makes no sense */
+		if(st == STREAM_ERROR) {
+			return EXIT_ERROR;
 		}
+		/* setup the buf & len */
 		len = Buffer_getLen(buf) - Buffer_getPos(buf);
 		off = Buffer_getPtr(buf) + Buffer_getPos(buf);
 		ret = HttpCodec_decode(decoder, off, &len);
-		if(ret == EXIT_DONE) {
-			Buffer_setPos(buf, Buffer_getPos(buf) + len);
-			if(Buffer_isEnd(buf)) {
-				Buffer_setPos(buf, 0);
-				Buffer_setLen(buf, 0);
-			}
-			break;
-			// TODO process error pos
-		} else if(ret == EXIT_ERROR) {
+		// TODO determine the position of EXIT_ERROR
+		Buffer_setPos(buf, Buffer_getPos(buf) + len);
+		if(Buffer_isEnd(buf)) {
+			Buffer_setPos(buf, 0);
+			Buffer_setLen(buf, 0);
+		}
+		/* decoding error occur, halt immediately */
+		if(ret == EXIT_ERROR) {
 			return EXIT_ERROR;
 		}
-		/* EXIT_PEND indicates there is no content left inside buffer */
-		Buffer_setPos(buf, Buffer_getPos(buf) + len);
-		assert(Buffer_isEnd(buf));
-		Buffer_setLen(buf, 0);
-		Buffer_setPos(buf, 0);
+		ret = DECODE_COMPOSE_MAP[ret][st];
+		if(ret != LOOP) {
+			return ret;
+		}
 	}
-	return EXIT_DONE;
 }
 
 int8_t HttpHelper_encode(HttpCodec encoder, NetStream ns, stream_state_t* state) {
 	int8_t   ret;
 	uint32_t len;
 	char*    off;
-	
+	stream_state_t st = STREAM_NONE;
 	Buffer buf = NetStream_getBuf(ns);
+
 	while(1) {
-		*state = NetStream_writeFromBuf(ns);
-		switch(*state) {
-			case STREAM_ERROR:
-				return EXIT_ERROR;
-			case STREAM_PEND:
-				return EXIT_PEND;
-		}
+		/* setup off & len */
 		len = Buffer_getLim(buf) - Buffer_getLen(buf);
 		off = Buffer_getPtr(buf) + Buffer_getLen(buf);
 		ret = HttpCodec_encode(encoder, off, &len);
-		if(ret == EXIT_DONE) {
-			Buffer_setLen(buf, Buffer_getLen(buf) + len);
-			break;
-		} else if(ret == EXIT_ERROR) {
+		Buffer_setLen(buf, Buffer_getLen(buf) + len);
+		/* encoding error occur, halt immediately */
+		if(ret == EXIT_ERROR) {
+			*state = STREAM_NONE;
 			return EXIT_ERROR;
 		}
-		Buffer_setLen(buf, Buffer_getLen(buf) + len);
+		st = NetStream_writeFromBufSpec(ns);
+		/* rewrite back the state of NetStream */
+		*state = st;
+		/* an error occur, the following process makes no sense */
+		if(st == STREAM_ERROR) {
+			return EXIT_ERROR;
+		}
+		ret = ENCODE_COMPOSE_MAP[ret][st];
+		if(ret != LOOP) {
+			return ret;
+		}
 	}
-	return EXIT_DONE;
 }
