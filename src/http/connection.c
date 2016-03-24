@@ -12,7 +12,7 @@ extern http_header_t HttpHeader_find(uint32_t, uint32_t);
 
 HttpConnection HttpConnection_init(HttpConnection conn, http_type_t type) {
 	/* set all content of connection to 0 as default */
-	memset(conn, 0, sizeof(conn));
+	memset(conn, 0, sizeof(http_connection_t));
 	conn->type = type;
 	MemBlock_init(&conn->data, INIT_DATA_SIZE);
 	/* NOTICE 0 is used to indicate there is no value */
@@ -26,6 +26,45 @@ const char* HttpConnection_getMethodStr(HttpConnection conn) {
 
 const char* HttpConnection_getVersionStr(HttpConnection conn) {
 	return VERSION_NAME[conn->ver];
+}
+
+const char* HttpConnection_decodePath(HttpConnection conn) {
+	char*   path = (char*)(conn->data.ptr + conn->str);
+	char    temp;
+	uint8_t ch;
+	int8_t  mode = 0;
+	char*   pstr = path;
+	char*   p    = path;
+	while((ch = *p++) != '\0') {
+		if(mode == 0) {
+			if(ch ^ '%') {
+				*pstr++ = ch;
+			} else {
+				mode = 2;
+			}
+		} else {
+			if((ch = ALPHA_HEX[ch]) == 0xFF) {
+				return NULL;
+			}
+			switch(mode) {
+				case 1:
+					temp |= ch;
+					*pstr++ = temp;
+					mode = 0;
+					break;
+				case 2:
+					temp = ch << 4;
+					mode = 1;
+					break;
+			}
+		}
+	}
+	if(mode == 0) {
+		*pstr = '\0';
+	} else {
+		return NULL;
+	}
+	return path;
 }
 
 const char* HttpConnection_getPath(HttpConnection conn) {
