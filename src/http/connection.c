@@ -11,27 +11,31 @@
 extern http_header_t HttpHeader_find(uint32_t, uint32_t);
 
 HttpConnection HttpConnection_init(HttpConnection conn, http_type_t type) {
+	/* set all content of connection to 0 as default */
+	memset(conn, 0, sizeof(conn));
 	conn->type = type;
-	conn->ver  = 0;
-	conn->code = 0;
-	conn->str  = 0;
 	MemBlock_init(&conn->data, INIT_DATA_SIZE);
 	/* NOTICE 0 is used to indicate there is no value */
 	conn->data.len  = 1;
 	conn->data.last = 1;
-	memset(conn->fields, 0, sizeof(uint32_t) * HEADER_MAX);
 }
 
-const char* HttpConnection_getMethod(HttpConnection conn) {
+const char* HttpConnection_getMethodStr(HttpConnection conn) {
 	return METHOD_NAME[conn->code];
 }
 
-const char* HttpConnection_getVersion(HttpConnection conn) {
+const char* HttpConnection_getVersionStr(HttpConnection conn) {
 	return VERSION_NAME[conn->ver];
 }
 
 const char* HttpConnection_getPath(HttpConnection conn) {
 	return (const char*)(conn->data.ptr + conn->str);
+}
+
+void HttpConnection_setPath(HttpConnection conn, const char* path) {
+	MemBlock data = &conn->data;
+	MemBlock_putStrN(data, path, strlen(path));
+	conn->str = MemBlock_getStr(data);
 }
 
 const char* HttpConnection_getHeader(HttpConnection conn, const char* name) {

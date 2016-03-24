@@ -150,12 +150,40 @@ void test_put_get_header(void** state) {
 	assert_memory_equal("test3",      HttpConnection_getHeader(&conn, "other3"    ), 6 );
 }
 
+void test_set_get_ver(void** state) {
+	http_connection_t conn;
+	HttpConnection_init(&conn, HTTP_REQ);
+	HttpConnection_setVersion(&conn, HTTP1_1);
+	assert_int_equal(HTTP1_1, HttpConnection_getVersion(&conn));
+	assert_memory_equal("HTTP/1.1", HttpConnection_getVersionStr(&conn), 9);
+}
+
+void test_set_get_method(void** state) {
+	http_connection_t conn;
+	HttpConnection_init(&conn, HTTP_REQ);
+	HttpConnection_setMethod(&conn, HTTP_GET);
+	assert_int_equal(HTTP_GET, HttpConnection_getMethod(&conn));
+	assert_memory_equal("GET", HttpConnection_getMethodStr(&conn), 4);
+}
+
+void test_put_get_path(void** state) {
+	http_connection_t conn;
+	HttpConnection_init(&conn, HTTP_REQ);
+
+	char* url = "http://localhost:8080/test/home/codesun/path?name=codesun&age=24";
+	HttpConnection_setPath(&conn, url);
+	assert_memory_equal(url, HttpConnection_getPath(&conn), strlen(url) + 1);
+}
+
 int main() {
 	const struct CMUnitTest tests[] = {
 		//cmocka_unit_test_setup_teardown(),
 		cmocka_unit_test(test_codec_req),
 		cmocka_unit_test(test_codec_res),
 		cmocka_unit_test(test_put_get_header),
+		cmocka_unit_test(test_set_get_method),
+		cmocka_unit_test(test_set_get_ver),
+		cmocka_unit_test(test_put_get_path),
 	};
 	return cmocka_run_group_tests(tests, NULL, NULL);
 }

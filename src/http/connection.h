@@ -55,14 +55,25 @@ typedef struct http_connection {
 	mem_block_t data;
 } http_connection_t, *HttpConnection;
 
-#define        HttpConnection_getMethodCode(req)  (req)->code
-#define        HttpConnection_getVersionCode(res) (res)->ver
-#define        HttpConnection_getStatusCode(res)  (res)->code
-#define        HttpConnection_close(conn)         MemBlock_free(&(conn)->data)
+
 HttpConnection HttpConnection_init(HttpConnection, http_type_t);
+#define        HttpConnection_close(conn)   MemBlock_free(&(conn)->data)
+#define        HttpConnection_getType(conn) (conn)->type      
+
 const char*    HttpConnection_getPath(HttpConnection);
-const char*    HttpConnection_getMethod(HttpConnection);
-const char*    HttpConnection_getVersion(HttpConnection);
+void           HttpConnection_setPath(HttpConnection, const char*);
+
+#define        HttpConnection_getMethod(conn)    (conn)->code
+#define        HttpConnection_setMethod(conn, m) (conn)->code = (m)
+const char*    HttpConnection_getMethodStr(HttpConnection);
+
+#define        HttpConnection_getVersion(conn)    (conn)->ver
+#define        HttpConnection_setVersion(conn, v) (conn)->ver = (v)
+const char*    HttpConnection_getVersionStr(HttpConnection);
+
+#define        HttpConnection_getStatus(conn)    (conn)->code
+#define        HttpConnection_setStatus(conn, s) (conn)->code = (s)
+
 const char*    HttpConnection_getHeader(HttpConnection, const char*);
 void           HttpConnection_putHeader(HttpConnection, const char*, const char*);
 
