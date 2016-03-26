@@ -2,6 +2,8 @@
 #include "../optimize.h"
 
 #include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
 
 #define PRIVATE static
 
@@ -142,59 +144,61 @@ void LinkList_inverse(LinkList li) {
 	}
 }
 
-ArrayList ArrayList_init(ArrayList li, uint32_t len) {
-	li->pos = 0;
-	li->len = len;
+ArrayList ArrayList_init(ArrayList li, size_t len) {
+	li->len = 0;
+	li->cap = len;
 	li->list = malloc(sizeof(void*) * len);
 	return li;
 }
 
-void ArrayList_free(ArrayList li) {
+void ArrayList_free(ArrayList li, Element_free free_cb) {
+	void** list = li->list;
+	if(free_cb == NULL) {
+		free_cb = free;
+	}
+	size_t i;
+	for(i = 0; i < li->len; ++i) {
+		free_cb(list[i]);
+	}
 	li->len = 0;
-	li->pos = 0;
-	free(li->list);
+	li->cap = 0;
+	free(list);
 }
 
 void ArrayList_push(ArrayList li, void* content) {
-	if(li->pos >= li->len) {
-		fprintf(stderr, "ERROR<ArrayList_push>: exceed the boundary of ArrayList\n");
-		exit(EXIT_FAILURE);
+	size_t cur = li->len;
+	size_t cap = li->cap;
+	while(cur >= cap) {
+		cap <<= 1;
 	}
-	li->list[li->pos++] = content;
+	if(cap != li->cap) {
+		li->cap = cap;
+		li->list = realloc(li->list, cap);
+	}
+	li->list[li->len++] = content;
 }
 
 void* ArrayList_pop(ArrayList li) {
-	if(li->pos == 0) {
-		fprintf(stderr, "ERROR<ArrayList_pop>: exceed the boundary of ArrayList\n");
-		exit(EXIT_FAILURE);
-	}
-	return li->list[--li->pos];
+	return li->list[--li->len];
 }
 
-void ArrayList_set(ArrayList li, uint32_t index, void* content) {
-	if(index >= li->len) {
-		fprintf(stderr, "ERROR<ArrayList_set>: exceed the boundary of ArrayList\n");
-		exit(EXIT_FAILURE);
+void ArrayList_set(ArrayList li, size_t index, void* content) {
+	size_t cap = li->cap;
+	while(index >= cap) {
+		cap <<= 1;
+	}
+	if(cap != li->cap) {
+		li->cap = cap;
+		li->list = realloc(li->list, cap);
 	}
 	li->list[index] = content;
 }
 
-void* ArrayList_get(ArrayList li, uint32_t index) {
-	if(index >= li->len) {
-		fprintf(stderr, "ERROR<ArrayList_get>: exceed the boundary of ArrayList\n");
-		exit(EXIT_FAILURE);
-	}
+void* ArrayList_get(ArrayList li, size_t index) {
 	return li->list[index];
 }
-uint32_t ArrayList_length(ArrayList li) {
-	return li->pos;
-}
 
-void ArrayList_clear(ArrayList li) {
-	li->pos = 0;
-}
-
-RingList RingList_init(RingList list, uint32_t size) {
+RingList RingList_init(RingList list, size_t size) {
 	uint32_t cap = 1;
 	while(cap < size) {
 		cap <<= 1;
@@ -207,15 +211,30 @@ RingList RingList_init(RingList list, uint32_t size) {
 	return list;
 }
 
+void RingList_free(RingList list, Element_free free_cb) {
+	if(free_cb == NULL) {
+		free_cb = free;
+	}
+	size_t head = list->head;
+	size_t i;
+	for(i = 0; i < list->len; ++i) {
+		free_cb(list->zone[head++]);
+		head = head & (list->cap - 1);
+	}
+	list->head = 0;
+	list->tail = 0;
+	list->len  = 0;
+}
+
 void RingList_put(RingList list, void* ele) {
-	uint32_t tail = list->tail;
+	size_t tail = list->tail;
 	list->zone[tail++] = ele;
 	list->tail = tail & (list->cap - 1);
 	++list->len;
 }
 
 void* RingList_get(RingList list) {
-	uint32_t head = list->head;
+	size_t head = list->head;
 	void* res = list->zone[head++];
 	list->head = head & (list->cap - 1);
 	--list->len;
