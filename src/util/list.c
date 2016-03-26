@@ -1,125 +1,139 @@
 #include "list.h"
+#include "../optimize.h"
 
 #include <stdio.h>
 
-#include "optimize.h"
-
 #define PRIVATE static
-
-typedef struct link_node {
-	void* content;
-	struct link_node* next;
-} link_node_t, *LinkNode;
-
-PRIVATE inline LinkNode LinkNode_new(void* c, LinkNode n) {
-	LinkNode res = malloc(sizeof(link_node_t));
-	res->content = c;
-	res->next = n;
-	return res;
-}
 
 LinkList LinkList_init(LinkList li) {
 	li->list = NULL;
-	li->len = 0;
+	li->len  = 0;
 	return li;
 }
-void LinkList_free(LinkList li) {
-	if(UNLIKELY(li->list == NULL)) {
-		return;
-	}
-	LinkNode p = li->list->next;
-	LinkNode temp = NULL;
-	while(LIKELY(p != li->list)) {
+
+void LinkList_clear(LinkList li) {
+	size_t i;
+	SLink p = li->list->next;
+	SLink temp;
+	for(i = 0; i < li->len; ++i) {
 		temp = p;
 		p = p->next;
-		free(temp);
+		temp->next = NULL;
 	}
-	free(p);
-	li->len = 0;
+	li->list = NULL;
+	li->len  = 0;
+}
+
+void LinkList_free(LinkList li, Element_free free_cb) {
+	size_t i;
+	SLink p = li->list->next;
+	SLink temp;
+	for(i = 0; i < li->len; ++i) {
+		temp = p;
+		p = p->next;
+		temp->next = NULL;
+		if(free_cb == NULL) {
+			free(temp);
+		} else {
+			free_cb(temp);
+		}
+	}
+	li->list = NULL;
+	li->len  = 0;
 }
 
 void LinkList_append(LinkList dest, LinkList src) {
-	if(src->len == 0) {
+	if(UNLIKELY(src->len == 0)) {
 		return;
 	}
 	if(LIKELY(dest->list != NULL)) {
-		LinkNode temp = dest->list->next;
-		dest->list->next = src->list->next;
-		src->list->next = temp;
-	} else {
-		dest->list = src->list;
+		SLink dtail = dest->list;
+		SLink stail = src->list;
+		SLink temp  = dtail->next;
+		dtail->next = stail->next;
+		stail->next = temp;
 	}
 	dest->len += src->len;
 	dest->list = src->list;
+	/* reset src list*/
 	src->list = NULL;
 	src->len = 0;
 }
 
-void LinkList_put(LinkList li, void* content) {
-	LinkNode n = LinkNode_new(content, NULL);
-	if(LIKELY(li->list != NULL)) {
-		n->next = li->list->next;
-		li->list->next = n;
-		li->list = n;
+/* put node to the list as new tail */
+void LinkList_put(LinkList li, SLink le) {
+	SLink tail = li->list;
+	/* check if the list is empty */
+	if(LIKELY(tail != NULL)) {
+		/* put the node as the head */
+		le->next   = tail->next;
+		tail->next = le;
+		/* set new node as the current node */
+		li->list   = le;
 	} else {
-		li->list = n;
-		n->next = n;
+		/* link the node with itself */
+		le->next = le;
+		li->list = le;
 	}
 	++li->len;
 }
 
-void* LinkList_get(LinkList li) {
-	if(UNLIKELY(li->list == NULL)) {
+/* get node from list as old head */
+SLink LinkList_get(LinkList li) {
+	SLink tail = li->list;
+	/* of course, return NULL if the list is empty */
+	if(UNLIKELY(tail == NULL)) {
 		return NULL;
 	}
-	void* res;
-	LinkNode p = li->list->next;
-	res = p->content;
-	if(LIKELY(li->list != p)) {
-		li->list->next = p->next;
+	SLink head = tail->next;
+	/* check if the list is going to be empty */
+	if(LIKELY(tail != head)) {
+		tail->next = head->next;
 	} else {
+		/* if head == tail, set list to NULL */
 		li->list = NULL;
 	}
-	free(p);
 	--li->len;
-	return res;
+	/* reset the next pointer */
+	head->next = NULL;
+	return head;
 }
 
-void LinkList_push(LinkList li, void* content) {
-	LinkNode n = LinkNode_new(content, NULL);
-	if(LIKELY(li->list != NULL)) {
-		n->next = li->list->next;
-		li->list->next = n;
+void LinkList_push(LinkList li, SLink le) {
+	SLink tail = li->list;
+	if(LIKELY(tail != NULL)) {
+		le->next = tail->next;
+		tail->next = le;
 	} else {
-		li->list = n;
-		n->next = n;
+		le->next = le;
+		li->list = le;
 	}
 	++li->len;
 }
 
-void* LinkList_pop(LinkList li) {
-	if(UNLIKELY(li->list == NULL)) {
+SLink LinkList_pop(LinkList li) {
+	SLink tail = li->list;
+	if(UNLIKELY(tail == NULL)) {
 		return NULL;
 	}
-	void* res;
-	LinkNode p = li->list->next;
-	res = p->content;
-	if(LIKELY(li->list != p)) {
-		li->list->next = p->next;
+	SLink head = tail->next;
+	if(LIKELY(tail != head)) {
+		tail->next = head->next;
 	} else {
 		li->list = NULL;
 	}
-	free(p);
 	--li->len;
-	return res;
+	/* reset the next pointer */
+	head->next = NULL;
+	return head;
 }
 
 void LinkList_inverse(LinkList li) {
-	LinkNode cur_node = li->list;
-	LinkNode pnext = cur_node->next;
-	LinkNode nxt_node = NULL;
+	SLink cur_node = li->list;
+	SLink pnext = cur_node->next;
+	SLink nxt_node = NULL;
 	li->list = pnext;
-	uint32_t i;
+	size_t i;
 	for(i = 0; i < li->len; ++i) {
 		nxt_node = pnext;
 		pnext    = nxt_node->next;
