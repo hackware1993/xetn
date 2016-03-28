@@ -1,5 +1,6 @@
 #include "net.h"
 #include "error.h"
+#include "common.h"
 
 #include <netinet/in.h>
 #include <netinet/tcp.h>
@@ -11,7 +12,6 @@
 #include <fcntl.h>
 #include <strings.h>
 
-#define PRIVATE static
 #define TCP 0x3a706374
 #define UDP 0x3a706475
 #define SLSL 0x2f2f
@@ -94,7 +94,6 @@ int32_t SocketOption_setNonBlock(Handler sock, uint32_t opt) {
 	if(opt != 0) {
 		ret = fcntl(fd, F_SETFL, flags | O_NONBLOCK);
 	} else {
-		// TODO check here
 		ret = fcntl(fd, F_SETFL, flags & ~O_NONBLOCK);
 	}
 	return ret;
@@ -144,34 +143,58 @@ int32_t SocketOption_setRecvBuf(Handler sock, uint32_t size) {
 	return ret;
 }
 
-#define SOCKOPT_MAP(XX) \
-	XX(NonBlock)  \
-	XX(KeepAlive) \
-	XX(NoDelay)   \
-	XX(ReuseAddr) \
-	XX(ReusePort) \
-	XX(SendBuf)   \
-	XX(RecvBuf) 
-
-typedef int32_t (*sockopt_cb)(Handler, uint32_t);
-
-#define XX(x) { SocketOption_set##x },
-PRIVATE struct {
-	sockopt_cb callback;
-} netopt_cb[] = {
-	SOCKOPT_MAP(XX)
-};
-#undef XX
-
-PRIVATE int32_t sock_option_handle(Handler sock, NetOption oplist) {
-	NetOption p = oplist;
+PRIVATE int SockOption_handle(Handler sock, NetOption oplist) {
 	int ret;
-	while(p->type != NET_NULL) {
-		ret = netopt_cb[p->type].callback(sock, p->opt);
+	fd_t fd = sock->fileno;
+	uint32_t opt;
+	netop_t type;
+	for(NetOption p = oplist; (type = p->type) != NET_NULL; ++p) {
+		opt = p->opt;
+		switch(type) {
+			case NET_NONBLOCK:
+				ret = fcntl(fd, F_GETFL, 0);
+				if(ret < 0) {
+					return -1;
+				}
+				if(opt != 0) {
+					ret |= O_NONBLOCK;
+				} else {
+					/* reset the flag using mask */
+					ret &= ~O_NONBLOCK;
+				}
+				ret = fcntl(fd, F_SETFL, ret);
+				break;
+			case NET_KEEPALIVE:
+				ret = setsockopt(fd, SOL_SOCKET, SO_KEEPALIVE,
+						&opt, (socklen_t)sizeof(opt));
+				break;
+			case NET_NODELAY:
+				ret = setsockopt(fd, IPPROTO_TCP, TCP_NODELAY,
+						&opt, (socklen_t)sizeof(opt));
+				break;
+			case NET_REUSEADDR:
+				ret = setsockopt(fd, SOL_SOCKET, SO_REUSEADDR,
+						&opt, (socklen_t)sizeof(opt));
+				break;
+			case NET_REUSEPORT:
+				ret = setsockopt(fd, SOL_SOCKET, SO_REUSEPORT,
+						&opt, (socklen_t)sizeof(opt));
+				break;
+			case NET_SENDBUF:
+				ret = setsockopt(fd, SOL_SOCKET, SO_SNDBUF,
+						&opt, (socklen_t)sizeof(opt));
+				break;
+			case NET_RECVBUF:
+				ret = setsockopt(fd, SOL_SOCKET, SO_RCVBUF,
+						&opt, (socklen_t)sizeof(opt));
+				break;
+			default:
+				errno = EINVAL;
+				return -1;
+		}
 		if(ret == -1) {
 			return -1;
 		}
-		++p;
 	}
 	return 0;
 }
@@ -307,7 +330,7 @@ Handler TcpServer_create(Handler sock, const char* url, NetOption oplist) {
 	sock->type = H_SOCK;
 	int32_t stat;
 	if(oplist != NULL) {
-		stat = sock_option_handle(sock, oplist);
+		stat = SockOption_handle(sock, oplist);
 		error_exit(stat == -1, TcpServer_create::netoption);
 	}
 
@@ -340,7 +363,7 @@ Handler TcpClient_create(Handler sock, const char* url, NetOption oplist) {
 	sock->type = H_SOCK;
 	int32_t stat;
 	if(oplist != NULL) {
-		stat = sock_option_handle(sock, oplist);
+		stat = SockOption_handle(sock, oplist);
 		error_exit(stat == -1, TcpClient_create:netoption);
 	}
 
@@ -363,7 +386,7 @@ Handler TcpServer_accept(Handler sock, Handler target, NetOption oplist) {
 	target->fileno = fd;
 	target->type = H_SOCK;
 	if(oplist != NULL) {
-		int stat = sock_option_handle(target, oplist);
+		int stat = SockOption_handle(target, oplist);
 		error_exit(stat == -1, TcpServer_accept:netoption);
 	}
 	return target;
