@@ -16,8 +16,13 @@
 #define CRLF "\r\n"
 #define SEP  ": "
 
-#define HASH(hash, ch) \
-	(hash) = ((hash) << 7) + ((hash) << 1) + (hash) + (ch)
+#define VER_LEN  8
+#define CRLF_LEN 2
+#define SEP_LEN  2
+#define SP_LEN   1
+#define ST_LEN   3
+
+#define HASH(hash, ch) (hash) = ((hash) << 7) + ((hash) << 1) + (hash) + (ch)
 
 typedef struct hash_pair {
 	int32_t hash;
@@ -79,9 +84,9 @@ http_status_t HttpStatus_find(int32_t num) {
 	}
 	return res;
 }
-enum { REQL_METHOD, REQL_PATH, REQL_VER, REQL_EOL, };
+enum { REQL_METHOD, REQL_SP1, REQL_PATH, REQL_SP2, REQL_VER, REQL_EOL, };
 
-enum { RESL_VER, RESL_ST, RESL_DESC, RESL_EOL, };
+enum { RESL_VER, RESL_SP1, RESL_ST, RESL_SP2, RESL_DESC, RESL_EOL, };
 
 enum {
 	FLD_INIT,
@@ -89,20 +94,20 @@ enum {
 	FLD_DONE,
 };
 
+enum {
+	IS_EXT = 0x02,
+};
+
 HttpCodec HttpCodec_init(HttpCodec codec, HttpConnection conn) {
 	codec->state = STATE_INIT;
 	codec->phaseHandler = NULL;
 	codec->conn  = conn;
 	codec->hash  = 0;
-	codec->is_ext = 0;
+	codec->flag  = 0;
 	MemBlock_clear(&codec->temp);
 	//MemBlock_init(&codec->temp, 1024);
 	/* keep 0 as the default index which represents NULL */
 	return codec;
-}
-
-void HttpCodec_close(HttpCodec codec) {
-	MemBlock_free(&codec->temp);
 }
 
 PRIVATE inline int8_t find_method(int32_t hash) {
@@ -138,7 +143,9 @@ int8_t encodeResStatusPhase(HttpCodec, char*, uint32_t*, uint32_t);
 int8_t encodeFieldPhase    (HttpCodec, char*, uint32_t*, uint32_t);
 
 int8_t encodeInitPhase(HttpCodec encoder, char* buf, uint32_t* pos, uint32_t len) {
-	MemBlock_init(&encoder->temp, 1024);
+	//MemBlock_init(&encoder->temp, 1024);
+	encoder->str = NULL;
+	encoder->sindex = 0;
 	encoder->cursor = 0;
 	encoder->step = 0;
 	if(encoder->conn->type ^ HTTP_RES) {
@@ -150,90 +157,115 @@ int8_t encodeInitPhase(HttpCodec encoder, char* buf, uint32_t* pos, uint32_t len
 }
 int8_t encodeReqStatusPhase(HttpCodec encoder, char* buf, uint32_t* pos, uint32_t len) {
 	HttpConnection conn = encoder->conn;
-	MemBlock       temp = &encoder->temp;
 	uint32_t pindex = *pos;
 	uint32_t nleft;
 	uint8_t  step = encoder->step;
 	uint32_t ret;
-	const char* str;
+	const char* str = encoder->str;
+	uint32_t    sindex = encoder->sindex;
 	uint32_t    slen;
 
 	switch(step) {
 		case REQL_METHOD: goto ENTRY_METHOD;
+		case REQL_SP1:    goto ENTRY_SP1;
 		case REQL_PATH:   goto ENTRY_PATH;
+		case REQL_SP2:    goto ENTRY_SP2;
 		case REQL_VER:    goto ENTRY_VER;
 		case REQL_EOL:    goto ENTRY_EOL;
 	}
 ENTRY_METHOD:
-	str = METHOD_NAME[conn->code];
+	/* @ASSERTION: str == NULL || str != NULL */
+	if(str == NULL) {
+		str = METHOD_NAME[conn->code];
+	}
 	slen = strlen(str);
-	nleft = (len - pindex >= slen) ? slen : len - pindex;
-	strncpy(buf + pindex, str, nleft);
-	pindex += nleft;
-	//ret = Buffer_putArr(buf, (void*)str, 0, slen);
-	if(nleft ^ slen) {
-		MemBlock_putStrN(temp, str + nleft, slen - nleft);
-		//step = REQL_PATH;
-		//goto PEND;
+	goto ENTRY_ENC;
+	/* @ASSERTION: str != NULL && slen == VER_LEN */
+ENTRY_SP1:
+	/* @ASSERTION: str == NULL || str != NULL */
+	if(str == NULL) {
+		str = " ";
 	}
-	if(LIKELY(pindex ^ len)) {
-		buf[pindex++] = SP;
-		//Buffer_put(buf, SP);
-	} else {
-		MemBlock_putChar(temp, SP);
-		step = REQL_PATH;
-		goto EXIT_PEND;
-	}
+	slen = SP_LEN;
+	goto ENTRY_ENC;
+	/* @ASSERTION: str != NULL && slen == VER_LEN */
 ENTRY_PATH:
-	str = (const char*)(conn->data.ptr + conn->str);
+	/* @ASSERTION: str == NULL || str != NULL */
+	if(str == NULL) {
+		str = (const char*)(conn->data.ptr + conn->str);
+	}
 	slen = strlen(str);
-	nleft = (len - pindex >= slen) ? slen : len - pindex;
-	strncpy(buf + pindex, str, nleft);
-	pindex += nleft;
-	//ret = Buffer_putArr(buf, (void*)str, 0, slen);
-	if(nleft ^ slen) {
-		MemBlock_putStrN(temp, str + nleft, slen - nleft);
-		//step = REQL_VER;
-		//goto PEND;
+	goto ENTRY_ENC;
+	/* @ASSERTION: str != NULL && slen == VER_LEN */
+ENTRY_SP2:
+	/* @ASSERTION: str == NULL || str != NULL */
+	if(str == NULL) {
+		str = " ";
 	}
-	if(LIKELY(pindex ^ len)) {
-		buf[pindex++] = SP;
-		//Buffer_put(buf, SP);
-	} else {
-		MemBlock_putChar(temp, SP);
-		step = REQL_VER;
-		goto EXIT_PEND;
-	}
+	slen = SP_LEN;
+	goto ENTRY_ENC;
+	/* @ASSERTION: str != NULL && slen == VER_LEN */
 ENTRY_VER:
-	str = VERSION_NAME[conn->ver];
-	//ret = Buffer_putArr(buf, (void*)str, 0, 8);
-	nleft = (len - pindex >= 8) ? 8 : len - pindex;
-	strncpy(buf + pindex, str, nleft);
-	pindex += nleft;
-	if(nleft ^ 8) {
-		MemBlock_putStrN(temp, str + nleft, 8 - nleft);
-		step = REQL_EOL;
+	/* @ASSERTION: str == NULL || str != NULL */
+	if(str == NULL) {
+		str = VERSION_NAME[conn->ver];
+	}
+	slen = VER_LEN;
+	goto ENTRY_ENC;
+	/* @ASSERTION: str != NULL && slen == VER_LEN */
+ENTRY_EOL:
+	/* @ASSERTION: str == NULL || str != NULL */
+	if(str == NULL) {
+		str = CRLF;
+	}
+	slen = CRLF_LEN;
+	goto ENTRY_ENC;
+	/* @ASSERTION: str != NULL && slen == VER_LEN */
+ENTRY_ENC:
+	/* @ASSERTION: str != NULL && slen > 0 */
+	// TODO consider if we need this
+	if(pindex == len) {
 		goto EXIT_PEND;
 	}
-ENTRY_EOL:
-	//ret = Buffer_putArr(buf, CRLF, 0, 2);
-	nleft = (len - pindex >= 2) ? 2 : len - pindex;
-	strncpy(buf + pindex, CRLF, nleft);
+	if((nleft = len - pindex) > slen - sindex) {
+		nleft = slen - sindex;
+	}
+	/* @ASSERTION: nleft == MIN(len - pindex, slen - index) */
+	strncpy(buf + pindex, str + sindex, nleft);
 	pindex += nleft;
-	if(nleft ^ 2) {
-		MemBlock_putStrN(temp, CRLF + nleft, 2 - nleft);
+	sindex  += nleft;
+	if(sindex ^ slen) {
+		goto EXIT_PEND;
+	}
+	str = NULL;
+	sindex = 0;
+	/* @ASSERTION: slen == index && str = NULL */
+ENTRY_AF_ENC:
+	switch(step) {
+		case REQL_METHOD: step = REQL_SP1;  goto ENTRY_SP1;
+		case REQL_SP1:    step = REQL_PATH; goto ENTRY_PATH;
+		case REQL_PATH:   step = REQL_SP2;  goto ENTRY_SP2;
+		case REQL_SP2:    step = REQL_VER;  goto ENTRY_VER;
+		case REQL_VER:    step = REQL_EOL;  goto ENTRY_EOL;
+		case REQL_EOL:    goto EXIT_DONE;
 	}
 EXIT_DONE:
+	/* @ASSERTION: step == REQL_EOL */
+	encoder->str = NULL;
+	encoder->sindex = 0;
 	encoder->step = 0;
 	*pos = pindex;
 	encoder->phaseHandler = encodeFieldPhase;
-	if(temp->len) {
-		return EXIT_PEND;
-	}
 	return EXIT_DONE;
+	/* @ASSERTION: pos != NULL && *pos == pindex && pindex == len */
 EXIT_PEND:
+	/* @ASSERTION: sindex != slen && str != NULL */
+	encoder->str = str;
+	encoder->sindex = sindex;
 	encoder->step = step;
 	*pos = pindex;
+	/* @ASSERTION: encoder != NULL && pos != NULL && *pos == pindex && pindex == len && */
+	/*             str != NULL && encoder->str == str && encoder->sindex == sindex */
 	return EXIT_PEND;
 EXIT_ERROR:
 	return EXIT_ERROR;
@@ -241,89 +273,136 @@ EXIT_ERROR:
 
 int8_t encodeResStatusPhase(HttpCodec encoder, char* buf, uint32_t* pos, uint32_t len) {
 	HttpConnection conn = encoder->conn;
-	MemBlock temp = &encoder->temp;
+	uint8_t        step = encoder->step;
+	const char*    str = encoder->str;
+	uint32_t       sindex = encoder->sindex;
 	uint32_t pindex = *pos;
 	uint32_t nleft;
-	uint8_t  step = encoder->step;
 	uint32_t ret;
-	const char* str;
-	uint32_t    slen;
+	uint32_t slen;
 
 	switch(step) {
-		case RESL_VER: goto ENTRY_VER;
-		case RESL_ST:  goto ENTRY_ST;
-		case RESL_EOL: goto ENTRY_EOL;
+		case RESL_VER:  goto ENTRY_VER;
+		case RESL_SP1:  goto ENTRY_SP1;
+		case RESL_ST:   goto ENTRY_ST;
+		case RESL_SP2:  goto ENTRY_SP2;
+		case RESL_DESC: goto ENTRY_DESC;
+		case RESL_EOL:  goto ENTRY_EOL;
 	}
 ENTRY_VER:
-	str = VERSION_NAME[conn->ver];
-	//ret = Buffer_putArr(dest, (void*)str, 0, 8);
-	nleft = (len - pindex >= 8) ? 8 : len - pindex;
-	strncpy(buf + pindex, str, nleft);
-	pindex += nleft;
-	if(nleft ^ 8) {
-		MemBlock_putStrN(temp, str + nleft, 8 - nleft);
-		//step = RESL_ST;
-		//goto PEND;
+	/* @ASSERTION: str == NULL || str != NULL */
+	if(str == NULL) {
+		str = VERSION_NAME[conn->ver];
 	}
-	if(LIKELY(pindex ^ len)) {
-		buf[pindex++] = SP;
-		//Buffer_put(dest, SP);
-	} else {
-		MemBlock_putChar(temp, SP);
-		step = RESL_ST;
-		goto EXIT_PEND;
+	slen = VER_LEN;
+	/* @ASSERTION: str != NULL && slen == VER_LEN */
+	goto ENTRY_ENC;
+ENTRY_SP1:
+	/* @ASSERTION: str == NULL || str != NULL */
+	if(str == NULL) {
+		str = " ";
 	}
+	slen = SP_LEN;
+	/* @ASSERTION: str != NULL && slen == SP_LEN */
+	goto ENTRY_ENC;
 ENTRY_ST:
-	str = STATUS_DESC[conn->code];
+	/* @ASSERTION: str == NULL || str != NULL */
+	if(str == NULL) {
+		str = STATUS_CODE[conn->code];
+	}
+	slen = ST_LEN;
+	/* @ASSERTION: str != NULL && slen == ST_LEN */
+	goto ENTRY_ENC;
+ENTRY_SP2:
+	/* @ASSERTION: str == NULL || str != NULL */
+	if(str == NULL) {
+		str = " ";
+	}
+	slen = SP_LEN;
+	/* @ASSERTION: str != NULL && slen == SP_LEN */
+	goto ENTRY_ENC;
+ENTRY_DESC:
+	/* @ASSERTION: str == NULL || str != NULL */
+	if(str == NULL) {
+		str = STATUS_DESC[conn->code];
+	}
 	slen = strlen(str);
-	//ret = Buffer_putArr(dest, (void*)str, 0, slen);
-	nleft = (len - pindex >= slen) ? slen : len - pindex;
-	strncpy(buf + pindex, str, nleft);
-	pindex += nleft;
-	if(nleft ^ slen) {
-		MemBlock_putStrN(temp, str + nleft, slen - nleft);
-		step = RESL_EOL;
+	/* @ASSERTION: str != NULL && slen == strlen(str) */
+	goto ENTRY_ENC;
+ENTRY_EOL:
+	/* @ASSERTION: str == NULL || str != NULL */
+	if(str == NULL) {
+		str = CRLF;
+	}
+	slen = CRLF_LEN;
+	/* @ASSERTION: str != NULL && slen == CRLF_LEN */
+	goto ENTRY_ENC;
+ENTRY_ENC:
+	/* @ASSERTION: str != NULL && slen > 0 */
+	// TODO consider if we need this
+	if(pindex == len) {
 		goto EXIT_PEND;
 	}
-ENTRY_EOL:
-	nleft = (len - pindex >= 2) ? 2 : len - pindex;
-	strncpy(buf + pindex, CRLF, nleft);
+	if((nleft = len - pindex) > slen - sindex) {
+		nleft = slen - sindex;
+	}
+	/* @ASSERTION: nleft == MIN(len - pindex, slen - index) */
+	strncpy(buf + pindex, str + sindex, nleft);
 	pindex += nleft;
-	//ret = Buffer_putArr(dest, CRLF, 0, 2);
-	if(nleft ^ 2) {
-		MemBlock_putStrN(temp, CRLF + nleft, 2 - nleft);
+	sindex  += nleft;
+	if(sindex ^ slen) {
+		goto EXIT_PEND;
+	}
+	str = NULL;
+	sindex = 0;
+	/* @ASSERTION: slen == index && str = NULL */
+ENTRY_AF_ENC:
+	switch(step) {
+		case RESL_VER:  step = RESL_SP1;  goto ENTRY_SP1;
+		case RESL_SP1:  step = RESL_ST;   goto ENTRY_ST;
+		case RESL_ST:   step = RESL_SP2;  goto ENTRY_SP2;
+		case RESL_SP2:  step = RESL_DESC; goto ENTRY_DESC;
+		case RESL_DESC: step = RESL_EOL;  goto ENTRY_EOL;
+		case RESL_EOL:  goto EXIT_DONE;
 	}
 EXIT_DONE:
+	/* @ASSERTION: step == RESL_EOL */
+	encoder->str = NULL;
+	encoder->sindex = 0;
 	encoder->step = 0;
 	*pos = pindex;
 	encoder->phaseHandler = encodeFieldPhase;
-	if(temp->len) {
-		return EXIT_PEND;
-	}
+	/* @ASSERTION: pos != NULL && *pos == pindex */
 	return EXIT_DONE;
 EXIT_PEND:
+	/* @ASSERTION: sindex != slen && str != NULL */
 	encoder->step = step;
 	*pos = pindex;
+	encoder->sindex = sindex;
+	encoder->str = str;
+	/* @ASSERTION: encoder != NULL && pos != NULL && *pos == pindex && pindex == len && */
+	/*             str != NULL && encoder->str == str && encoder->sindex == sindex      */
 	return EXIT_PEND;
 EXIT_ERROR:
+	/* It seems no error will occur, right? */
 	return EXIT_ERROR;
 }
 
 int8_t encodeFieldPhase(HttpCodec encoder, char* buf, uint32_t* pos, uint32_t len) {
 	HttpConnection conn = encoder->conn;
-	MemBlock temp = &encoder->temp;
 	uint32_t pindex = *pos;
-	uint8_t step = encoder->step;
+	uint8_t step   = encoder->step;
 	uint8_t cursor = encoder->cursor;
-	uint8_t is_ext = encoder->is_ext;
+	uint8_t flag   = encoder->flag;
+	const char* str = encoder->str;
+	uint32_t    sindex = encoder->sindex;
 	/* temporary variable */
-	uint32_t nleft;
 	void*       data   = conn->data.ptr;
 	uint32_t*   fields = conn->fields;
-	const char* pkey, * pval;
-	uint32_t    klen,   vlen;
+	uint32_t    slen;
 	uint32_t    offset;
 	uint32_t    ret;
+	uint32_t    nleft;
 
 	switch(step) {
 		case FLD_INIT: goto ENTRY_INIT;
@@ -334,103 +413,109 @@ int8_t encodeFieldPhase(HttpCodec encoder, char* buf, uint32_t* pos, uint32_t le
 		case FLD_DONE: goto ENTRY_DONE;
 	}
 ENTRY_INIT:
-	// TODO simplify here
-	while(cursor < HEADER_MAX) {
-		/* check is the is_ext flag should be set */
-		if(!is_ext && cursor == HTTP_HEADER_NUM) {
-			is_ext = 1;
-		}
+	for(; cursor < HEADER_MAX; ++cursor) {
 		if(fields[cursor]) {
-			goto ENTRY_KEY;
-		} else {
-			if(is_ext) {
-				break;
+			if(cursor >= HTTP_HEADER_NUM) {
+				flag |= IS_EXT;
 			}
-			++cursor;
+			step = FLD_KEY;
+			goto ENTRY_KEY;
+		} else if(cursor >= HTTP_HEADER_NUM) {
+			break;
 		}
 	}
 	/* cursor == HEADER_MAX OR fields[cursor] == 0 && is_ext */
 	step = FLD_DONE;
 	goto ENTRY_DONE;
 ENTRY_KEY:
-	if(LIKELY(!is_ext)) {
-		pkey = HEADER_NAME[cursor];
-		klen = HEADER_LEN[cursor];
+	if(str == NULL) {
+		if(LIKELY(!(flag & IS_EXT))) {
+			str = HEADER_NAME[cursor];
+		} else {
+			ExtraField ef = (ExtraField)(data + fields[cursor]);
+			str = (const char*)(data + ef->key);
+		}
+	}
+	if(LIKELY(!(flag & IS_EXT))) {
+		slen = HEADER_LEN[cursor];
 	} else {
-		ExtraField ef = (ExtraField)(data + fields[cursor]);
-		pkey = (const char*)(data + ef->key);
-		klen = strlen(pkey);
+		slen = strlen(str);
 	}
-	nleft = (len - pindex >= klen) ? klen : len - pindex;
-	strncpy(buf + pindex, pkey, nleft);
-	pindex += nleft;
-	//ret = Buffer_putArr(dest, (void*)pkey, 0, klen);
-	if(nleft ^ klen) {
-		MemBlock_putStrN(temp, pkey + nleft, klen - nleft);
-		step = FLD_SEP;
-		goto EXIT_PEND;
-	}
+	goto ENTRY_ENC;
 ENTRY_SEP:
-	nleft = (len - pindex >= 2) ? 2 : len - pindex;
-	strncpy(buf + pindex, SEP, nleft);
-	pindex += nleft;
-	//ret = Buffer_putArr(dest, SEP, 0, 2);
-	if(nleft ^ 2) {
-		MemBlock_putStrN(temp, SEP + nleft, 2 - nleft);
-		step = FLD_VAL;
-		goto EXIT_PEND;
+	if(str == NULL) {
+		str = SEP;
 	}
+	slen = SEP_LEN;
+	goto ENTRY_ENC;
 ENTRY_VAL:
-	offset = fields[cursor];
-	if(LIKELY(!is_ext)) {
-		pval = (const char*)(data + offset);
-	} else {
-		ExtraField ef = (ExtraField)(data + offset);
-		pval = (const char*)(data + ef->value);
+	if(str == NULL) {
+		offset = fields[cursor];
+		if(LIKELY(!(flag & IS_EXT))) {
+			str = (const char*)(data + offset);
+		} else {
+			ExtraField ef = (ExtraField)(data + offset);
+			str = (const char*)(data + ef->value);
+		}
 	}
-	vlen = strlen(pval);
-	nleft = (len - pindex >= vlen) ? vlen : len - pindex;
-	strncpy(buf + pindex, pval, nleft);
-	pindex += nleft;
-	//ret = Buffer_putArr(dest, (void*)pval, 0, vlen);
-	if(nleft ^ vlen) {
-		MemBlock_putStrN(temp, pval + nleft, vlen - nleft);
-		step = FLD_EOL;
-		goto EXIT_PEND;
-	}
+	slen = strlen(str);
+	goto ENTRY_ENC;
 ENTRY_EOL:
-	++cursor;
-	nleft = (len - pindex >= 2) ? 2 : len - pindex;
-	strncpy(buf + pindex, CRLF, nleft);
-	pindex += nleft;
-	//ret = Buffer_putArr(dest, CRLF, 0, 2);
-	if(nleft ^ 2) {
-		MemBlock_putStrN(temp, CRLF + nleft, 2 - nleft);
-		step = FLD_INIT;
+	/* @ASSERTION: str == NULL || str != NULL */
+	if(str == NULL) {
+		str = CRLF;
+	}
+	slen = CRLF_LEN;
+	/* @ASSERTION: str != NULL && slen > 0 */
+	goto ENTRY_ENC;
+ENTRY_DONE:
+	/* @ASSERTION: str == NULL || str != NULL */
+	if(str == NULL) {
+		str = CRLF;
+	}
+	slen = CRLF_LEN;
+	/* @ASSERTION: str != NULL && slen > 0 */
+	goto ENTRY_ENC;
+ENTRY_ENC:
+	/* @ASSERTION: str != NULL && slen > 0 */
+	// TODO consider if we need this
+	if(pindex == len) {
 		goto EXIT_PEND;
 	}
-	goto ENTRY_INIT;
-ENTRY_DONE:
-	nleft = (len - pindex >= 2) ? 2 : len - pindex;
-	strncpy(buf + pindex, CRLF, nleft);
+	if((nleft = len - pindex) > slen - sindex) {
+		nleft = slen - sindex;
+	}
+	/* @ASSERTION: nleft == MIN(len - pindex, slen - index) */
+	strncpy(buf + pindex, str + sindex, nleft);
 	pindex += nleft;
-	//ret = Buffer_putArr(dest, CRLF, 0, 2);
-	if(nleft ^ 2) {
-		MemBlock_putStrN(temp, CRLF + nleft, 2 - nleft);
-		goto EXIT_DONE;
+	sindex  += nleft;
+	if(sindex ^ slen) {
+		goto EXIT_PEND;
+	}
+	str = NULL;
+	sindex = 0;
+	/* @ASSERTION: slen == index && str = NULL */
+ENTRY_AF_ENC:
+	switch(step) {
+		case FLD_KEY:  step = FLD_SEP; goto ENTRY_SEP;
+		case FLD_SEP:  step = FLD_VAL; goto ENTRY_VAL;
+		case FLD_VAL:  step = FLD_EOL; goto ENTRY_EOL;
+		case FLD_EOL:  ++cursor;       goto ENTRY_INIT;
+		case FLD_DONE: goto EXIT_DONE;
 	}
 EXIT_DONE:
+	encoder->str = NULL;
+	encoder->sindex = 0;
 	encoder->step = 0;
 	*pos = pindex;
 	encoder->phaseHandler = NULL;
-	if(temp->len) {
-		return EXIT_PEND;
-	}
 	return EXIT_DONE;
 EXIT_PEND:
+	encoder->str    = str;
+	encoder->sindex = sindex;
 	encoder->step = step;
 	encoder->cursor = cursor;
-	encoder->is_ext = is_ext;
+	encoder->flag = flag;
 	*pos = pindex;
 	return EXIT_PEND;
 EXIT_ERROR:
@@ -446,20 +531,6 @@ int8_t HttpCodec_encode(HttpCodec encoder, char* buf, uint32_t* len) {
 			encoder->phaseHandler = encodeInitPhase;
 			encoder->state = STATE_DOING;
 		case STATE_DOING:
-			if(encoder->temp.len) {
-				MemBlock temp = &encoder->temp;
-				uint32_t off = temp->last;
-				uint32_t nleft = temp->len - off;
-				if(*len >= nleft) {
-					strncpy(buf, temp->ptr + off, nleft);
-					temp->len = temp->last = 0;
-					pos = nleft;
-				} else {
-					strncpy(buf, temp->ptr + off, *len);
-					temp->last += *len;
-					return EXIT_PEND;
-				}
-			}
 			while(encoder->phaseHandler) {
 				switch(ret = encoder->phaseHandler(encoder, buf, &pos, *len)) {
 					case EXIT_ERROR:
@@ -470,6 +541,7 @@ int8_t HttpCodec_encode(HttpCodec encoder, char* buf, uint32_t* len) {
 			}
 			*len = pos;
 			encoder->state = STATE_DONE;
+			//MemBlock_free(&encoder->temp);
 			return EXIT_DONE;
 		case STATE_DONE:  return EXIT_DONE;
 		case STATE_ERROR: return EXIT_ERROR;
@@ -689,7 +761,7 @@ int8_t decodeFieldPhase(HttpCodec decoder, char* buf, uint32_t* pos, uint32_t le
 	uint32_t hash = decoder->hash;
 	uint8_t  step = decoder->step;
 	uint32_t fld  = decoder->fld;
-	uint8_t  is_ext = decoder->is_ext;
+	uint8_t  flag = decoder->flag;
 	uint8_t  cursor = decoder->cursor;
 	/* temporary variable */
 	char     ch;
@@ -753,7 +825,7 @@ ENTRY_SEP:
 		} else {
 			fld = MemBlock_getStr(temp);
 			/* the header belongs to extra header */
-			is_ext = 1;
+			flag |= IS_EXT;
 		}
 		step = FLD_VAL;
 		goto ENTRY_VAL;
@@ -790,14 +862,14 @@ ENTRY_EOL:
 		step = FLD_INIT;
 		uint32_t v = MemBlock_getStr(temp);
 		/* save the current line of http header field */
-		if(LIKELY(!is_ext)) {
+		if(LIKELY(!(flag & IS_EXT))) {
 			conn->fields[fld] = v;
 		} else {
 			MemBlock_putInt4(temp, hash);
 			MemBlock_putInt4(temp, fld);
 			MemBlock_putInt4(temp, v);
 			conn->fields[cursor++] = MemBlock_getStruct(temp);
-			is_ext = 0;
+			flag &= ~IS_EXT;
 		}
 		goto ENTRY_INIT;
 	} else {
@@ -820,7 +892,7 @@ EXIT_DONE:
 	*pos = pindex;
 	return EXIT_DONE;
 EXIT_PEND:
-	decoder->is_ext = is_ext;
+	decoder->flag = flag;
 	decoder->cursor = cursor;
 	decoder->fld = fld;
 	decoder->step = step;

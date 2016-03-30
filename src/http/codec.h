@@ -14,27 +14,31 @@ typedef enum codec_state {
 
 enum {
 	EXIT_ERROR = -1,
-	EXIT_PEND  = 0,
-	EXIT_DONE  = 1,
+	EXIT_DONE  = 0,
+	EXIT_PEND  = 1,
 };
 
 struct http_codec;
 typedef int8_t (*phase_cb_t)(struct http_codec*, char*, uint32_t*, uint32_t);
 typedef struct http_codec {
 	HttpConnection conn;
+	phase_cb_t     phaseHandler;
 	codec_state_t  state;
 	mem_block_t    temp;
-	phase_cb_t     phaseHandler;
+	uint8_t        flag;
 	uint8_t        step;
-	uint8_t        is_ext;
 	uint8_t        cursor;
 	uint32_t       fld;
 	uint32_t       hash;
+	/* for encoding */
+	const char*    str;
+	uint32_t       sindex;
 } http_codec_t, *HttpCodec;
 
 HttpCodec HttpCodec_init(HttpCodec, HttpConnection);
-void HttpCodec_reset(HttpCodec);
-void HttpCodec_close(HttpCodec);
+/* HttpCodec is a light class which don't request for memory */
+//void HttpCodec_reset(HttpCodec);
+//void HttpCodec_close(HttpCodec);
 
 /**
  * Return Value:
