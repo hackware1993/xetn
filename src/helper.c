@@ -15,8 +15,8 @@ enum {
 /*   EXIT_DONE  + STREAM_DONE -> EXIT_DONE  */
 int8_t DECODE_COMPOSE_MAP[2][5] = {
              /* STREAM_NONE, STREAM_ERROR, STREAM_PEND, STREAM_HUP, STREAM_DONE */
-/* EXIT_PEND */{       NONE,         NONE,   EXIT_PEND, EXIT_ERROR,        LOOP},
 /* EXIT_DONE */{       NONE,         NONE,   EXIT_DONE,  EXIT_DONE,   EXIT_DONE},
+/* EXIT_PEND */{       NONE,         NONE,   EXIT_PEND, EXIT_ERROR,        LOOP},
 };
 /* possible state composition for encoding: */
 /*   EXIT_ERROR + STREAM_*    -> EXIT_ERROR */
@@ -26,8 +26,8 @@ int8_t DECODE_COMPOSE_MAP[2][5] = {
 /*   EXIT_DONE  + STREAM_DONE -> EXIT_DONE  */
 int8_t ENCODE_COMPOSE_MAP[2][5] = {
              /* STREAM_NONE, STREAM_ERROR, STREAM_PEND, STREAM_HUP, STREAM_DONE */
-/* EXIT_PEND */{       NONE,         NONE,   EXIT_PEND,       NONE,        LOOP},
 /* EXIT_DONE */{       NONE,         NONE,   EXIT_PEND,       NONE,   EXIT_DONE},
+/* EXIT_PEND */{       NONE,         NONE,   EXIT_PEND,       NONE,        LOOP},
 };
 int8_t HttpHelper_decode(HttpCodec decoder, NetStream ns, stream_state_t* state) {
 	int8_t   ret;
