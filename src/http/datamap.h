@@ -3,7 +3,10 @@
 
 #define MAGNUM 458
 
+extern uint8_t     ALPHA_HEX[];
+
 extern uint16_t    STATUS_NUM[];
+extern const char* STATUS_CODE[];
 extern const char* STATUS_DESC[];
 
 extern uint64_t    METHOD_HASH[];
@@ -21,6 +24,5 @@ extern const char* HEADER_LABEL[];
 extern uint8_t URL_TOKEN_MAP[];
 extern uint8_t KEY_TOKEN_MAP[];
 extern uint8_t VAL_TOKEN_MAP[];
-
 
 #endif //_DATAMAP_H_

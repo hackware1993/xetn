@@ -28,6 +28,10 @@ const char* HttpConnection_getVersionStr(HttpConnection conn) {
 	return VERSION_NAME[conn->ver];
 }
 
+const char* HttpConnection_getStatusStr(HttpConnection conn) {
+	return STATUS_DESC[conn->code];
+}
+
 const char* HttpConnection_decodePath(HttpConnection conn) {
 	char*   path = (char*)(conn->data.ptr + conn->str);
 	char    temp;

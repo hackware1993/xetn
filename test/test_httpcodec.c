@@ -174,6 +174,13 @@ void test_put_get_path(void** state) {
 	HttpConnection_setPath(&conn, url);
 	assert_memory_equal(url, HttpConnection_getPath(&conn), strlen(url) + 1);
 }
+void test_set_get_status() {
+	http_connection_t conn;
+	HttpConnection_init(&conn, HTTP_RES);
+	HttpConnection_setStatus(&conn, ST_200);
+	assert_int_equal(ST_200, HttpConnection_getStatus(&conn));
+	assert_memory_equal("OK", HttpConnection_getStatusStr(&conn), 3);
+}
 
 int main() {
 	const struct CMUnitTest tests[] = {
@@ -184,6 +191,7 @@ int main() {
 		cmocka_unit_test(test_set_get_method),
 		cmocka_unit_test(test_set_get_ver),
 		cmocka_unit_test(test_put_get_path),
+		cmocka_unit_test(test_set_get_status),
 	};
 	return cmocka_run_group_tests(tests, NULL, NULL);
 }

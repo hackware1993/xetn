@@ -60,6 +60,7 @@ HttpConnection HttpConnection_init(HttpConnection, http_type_t);
 #define        HttpConnection_close(conn)   MemBlock_free(&(conn)->data)
 #define        HttpConnection_getType(conn) (conn)->type      
 
+const char*    HttpConnection_decodePath(HttpConnection);
 const char*    HttpConnection_getPath(HttpConnection);
 void           HttpConnection_setPath(HttpConnection, const char*);
 
@@ -73,6 +74,7 @@ const char*    HttpConnection_getVersionStr(HttpConnection);
 
 #define        HttpConnection_getStatus(conn)    (conn)->code
 #define        HttpConnection_setStatus(conn, s) (conn)->code = (s)
+const char*    HttpConnection_getStatusStr(HttpConnection);
 
 const char*    HttpConnection_getHeader(HttpConnection, const char*);
 void           HttpConnection_putHeader(HttpConnection, const char*, const char*);
