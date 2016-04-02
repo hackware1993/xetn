@@ -11,6 +11,14 @@
 #include "log.h"
 #include "io.h"
 
+#define LOG_BUF_LEN 4096
+
+#define XX(a, b) b,
+const char* LOG_STR[] = {
+	LOG_LV(XX)
+};
+#undef XX
+
 Log Log_init(Log logger) {
 	int fd[2];
 	if(socketpair(AF_UNIX, SOCK_STREAM, 0, fd) == -1) {
@@ -30,11 +38,11 @@ Log Log_getClient(Log logger) {
 	return logger;
 }
 
-Log Log_getServer(Log logger) {
+Log Log_getServer(Log logger, const char* filename) {
 	/* log server is also a client */
 	//Handler_close(&logger->client);
 	logger->data = (char*)calloc(1, 4096);
-	int fd = open("./log/log.txt", O_CREAT | O_WRONLY | O_APPEND, 0644);
+	int fd = open(filename, O_CREAT | O_WRONLY | O_APPEND, 0644);
 	if(fd == -1) {
 		perror("Log_getServer");
 		exit(-1);
@@ -64,46 +72,41 @@ void Log_record(Log logger, log_level_t level, const char* fmt, ...) {
 	vsnprintf(buf, 1024, fmt, varg);
 	va_end(varg);
 	char item[2048];
-	char dt[20];
+	char dt[20] = {0};
 	time_t tnow = time(NULL);
 	DateTime_formatTimeStamp(&tnow, dt);
-	dt[19] = '\0';
-	char* lvstr;
-	switch(level) {
-		case LOG_INFO:  lvstr = "INFO";    break;
-		case LOG_WARN:  lvstr = "WARNING"; break;
-		case LOG_ERROR: lvstr = "ERROR";   break;
-	}
-	uint32_t len = snprintf(item, 2048, "[%s] %s - %s\n", lvstr, dt, buf);
-	int n = 0;
-	while(n < len) {
-		n = IO_writeSpec(&logger->client, item, len);
-		assert(n != -1);
-	}
+	size_t len = snprintf(item, 2048, "[%s] %s - %s\n", LOG_STR[level], dt, buf);
+	int8_t ret = IO_writeSpec(&logger->client, item, &len);
+	assert(ret == 0);
 }
 
 void* Log_main(void* arg) {
-	Log logger = (Log)arg;
-	char* buf = logger->data;
-	uint32_t len   = 4096;
-	uint32_t off   = 0;
-	uint32_t nread = len;
-	int n = 0;
-	while(1) {
-		n = IO_read(&logger->server, buf + off, nread);
-		off   += n;
-		nread -= n;
-		if(nread == 0) {
-			IO_writeSpec(&logger->logfile, buf, len);
+	Log logger   = (Log)arg;
+	char* buf    = logger->data;
+	size_t len   = LOG_BUF_LEN;
+	size_t nread = LOG_BUF_LEN;
+	size_t off   = 0;
+	int8_t ret;
+	while(ret = IO_read(&logger->server, buf + off, &nread) == 0) {
+		off += nread;
+		len -= nread;
+		nread = len;
+		if(len == 0) {
+			IO_writeSpec(&logger->logfile, buf, &off);
 			off   = 0;
-			nread = len;
+			len   = LOG_BUF_LEN;
+			nread = LOG_BUF_LEN;
 		}
-		if(n == 0) {
-			if(off) {
-				IO_writeSpec(&logger->logfile, buf, off);
-			}
-			break;
-		}
+	}
+	if(ret == -1) {
+		perror("Log_main");
+		exit(-1);
+	}
+	/* peer shutdown */
+	/* @ASSERTION: ret == 1 */
+	if(off) {
+		ret = IO_writeSpec(&logger->logfile, buf, &off);
+		assert(ret == 0);
 	}
 	pthread_exit(0);
 }
@@ -130,7 +133,7 @@ int main() {
 		Log_close(client);
 		exit(0);
 	}
-	Log serv = Log_getServer(&logger);
+	Log serv = Log_getServer(&logger, "./log/log.txt");
 	Log_record(serv, LOG_WARN, "log start");
 	Log_runServer(serv);
 	wait(NULL);

@@ -5,11 +5,16 @@
 
 #include "handler.h"
 
+#define LOG_LV(XX) \
+	XX(LOG_INFO , "INFO"   ) \
+	XX(LOG_WARN , "WARNING") \
+	XX(LOG_ERROR, "ERROR"  )
+
+#define XX(a, b) a,
 typedef enum log_level {
-	LOG_INFO,
-	LOG_WARN,
-	LOG_ERROR,
+	LOG_LV(XX)
 } log_level_t;
+#undef XX
 
 typedef struct log {
 	handler_t  server;
@@ -22,7 +27,7 @@ typedef struct log {
 Log Log_init(Log);
 
 Log Log_getClient(Log);
-Log Log_getServer(Log);
+Log Log_getServer(Log, const char*);
 
 void Log_close(Log);
 
