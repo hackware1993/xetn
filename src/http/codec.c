@@ -1,20 +1,30 @@
 #include <stdio.h>
 
-#include <x86intrin.h>
+//#include <x86intrin.h>
 #include <assert.h>
 #include <string.h>
-#include "../optimize.h"
+#include "../common.h"
 #include "codec.h"
 #include "datamap.h"
 
-#define PRIVATE static
+/* main state of http codec */
+enum {
+	STATE_INIT,
+	STATE_DOING,
+	STATE_DONE,
+	STATE_ERROR,
+};
+
+#define CRLF "\r\n"
+#define SEP  ": "
 
 #define SP   ' '
 #define COL  ':'
 #define CR   '\r'
 #define LF   '\n'
-#define CRLF "\r\n"
-#define SEP  ": "
+#define DOT  '.'
+#define QS   '?'
+#define SL   '/'
 
 #define VER_LEN  8
 #define CRLF_LEN 2
@@ -84,47 +94,53 @@ http_status_t HttpStatus_find(int32_t num) {
 	}
 	return res;
 }
-enum { REQL_METHOD, REQL_SP1, REQL_PATH, REQL_SP2, REQL_VER, REQL_EOL, };
 
-enum { RESL_VER, RESL_SP1, RESL_ST, RESL_SP2, RESL_DESC, RESL_EOL, };
+/* Http Codec Flags */
+enum {
+	IS_EXT   = 0x02,
+	IS_TRANS = 0x04,
+};
 
+/* internal phases */
+enum {
+	REQL_METHOD, REQL_SP1,
+	REQL_PATH, REQL_PQ, REQL_QUERY, REQL_SP2,
+	REQL_VER, REQL_EOL,
+};
+enum {
+	RESL_VER, RESL_SP1,
+	RESL_ST, RESL_SP2,
+	RESL_DESC, RESL_EOL,
+};
 enum {
 	FLD_INIT,
 	FLD_KEY, FLD_SEP, FLD_VAL, FLD_EOL,
 	FLD_DONE,
 };
 
-enum {
-	IS_EXT = 0x02,
-};
-
 HttpCodec HttpCodec_init(HttpCodec codec, HttpConnection conn) {
 	codec->state = STATE_INIT;
-	codec->phaseHandler = NULL;
 	codec->conn  = conn;
 	codec->hash  = 0;
 	codec->flag  = 0;
-	MemBlock_clear(&codec->temp);
-	//MemBlock_init(&codec->temp, 1024);
-	/* keep 0 as the default index which represents NULL */
 	return codec;
 }
 
-PRIVATE inline int8_t find_method(int32_t hash) {
+PRIVATE INLINE int8_t FindMethod(int32_t hash) {
 	HashPair p = (HashPair)(METHOD_HASH + hash % 14);
 	if((p->hash ^ hash) == 0) {
 		return p->id;
 	}
 	return -1;
 }
-PRIVATE inline int8_t find_version(int32_t hash) {
+PRIVATE INLINE int8_t FindVersion(int32_t hash) {
 	HashPair p = (HashPair)(VERSION_HASH + hash % 4);
 	if((p->hash ^ hash) == 0) {
 		return p->id;
 	}
 	return -1;
 }
-PRIVATE inline http_header_t find_header(uint32_t hash) {
+PRIVATE INLINE http_header_t FindHeader(uint32_t hash) {
 	uint32_t index = hash % MAGNUM;
 	if((HEADER_HASH[index] ^ hash) == 0) {
 		return HEADER_INDEX[index];
@@ -143,7 +159,6 @@ int8_t encodeResStatusPhase(HttpCodec, char*, uint32_t*, uint32_t);
 int8_t encodeFieldPhase    (HttpCodec, char*, uint32_t*, uint32_t);
 
 int8_t encodeInitPhase(HttpCodec encoder, char* buf, uint32_t* pos, uint32_t len) {
-	//MemBlock_init(&encoder->temp, 1024);
 	encoder->str = NULL;
 	encoder->sindex = 0;
 	encoder->cursor = 0;
@@ -169,6 +184,8 @@ int8_t encodeReqStatusPhase(HttpCodec encoder, char* buf, uint32_t* pos, uint32_
 		case REQL_METHOD: goto ENTRY_METHOD;
 		case REQL_SP1:    goto ENTRY_SP1;
 		case REQL_PATH:   goto ENTRY_PATH;
+		case REQL_PQ:     goto ENTRY_PQ;
+		case REQL_QUERY:  goto ENTRY_QUERY;
 		case REQL_SP2:    goto ENTRY_SP2;
 		case REQL_VER:    goto ENTRY_VER;
 		case REQL_EOL:    goto ENTRY_EOL;
@@ -192,7 +209,23 @@ ENTRY_SP1:
 ENTRY_PATH:
 	/* @ASSERTION: str == NULL || str != NULL */
 	if(str == NULL) {
-		str = (const char*)(conn->data.ptr + conn->str);
+		str = (const char*)(conn->data.ptr + conn->path);
+	}
+	slen = strlen(str);
+	goto ENTRY_ENC;
+	/* @ASSERTION: str != NULL && slen == VER_LEN */
+ENTRY_PQ:
+	/* @ASSERTION: str == NULL || str != NULL */
+	if(str == NULL) {
+		str = "?";
+	}
+	slen = strlen(str);
+	goto ENTRY_ENC;
+	/* @ASSERTION: str != NULL && slen == VER_LEN */
+ENTRY_QUERY:
+	/* @ASSERTION: str == NULL || str != NULL */
+	if(str == NULL) {
+		str = (const char*)(conn->data.ptr + conn->query);
 	}
 	slen = strlen(str);
 	goto ENTRY_ENC;
@@ -244,9 +277,17 @@ ENTRY_AF_ENC:
 	switch(step) {
 		case REQL_METHOD: step = REQL_SP1;  goto ENTRY_SP1;
 		case REQL_SP1:    step = REQL_PATH; goto ENTRY_PATH;
-		case REQL_PATH:   step = REQL_SP2;  goto ENTRY_SP2;
-		case REQL_SP2:    step = REQL_VER;  goto ENTRY_VER;
-		case REQL_VER:    step = REQL_EOL;  goto ENTRY_EOL;
+		case REQL_PATH:
+			if(conn->query) {
+				step = REQL_PQ;
+				goto ENTRY_PQ;
+			}
+			step = REQL_SP2;
+			goto ENTRY_SP2;
+		case REQL_PQ:    step = REQL_QUERY; goto ENTRY_QUERY;
+		case REQL_QUERY:  step = REQL_SP2;   goto ENTRY_SP2;
+		case REQL_SP2:    step = REQL_VER;   goto ENTRY_VER;
+		case REQL_VER:    step = REQL_EOL;   goto ENTRY_EOL;
 		case REQL_EOL:    goto EXIT_DONE;
 	}
 EXIT_DONE:
@@ -541,7 +582,6 @@ int8_t HttpCodec_encode(HttpCodec encoder, char* buf, uint32_t* len) {
 			}
 			*len = pos;
 			encoder->state = STATE_DONE;
-			//MemBlock_free(&encoder->temp);
 			return EXIT_DONE;
 		case STATE_DONE:  return EXIT_DONE;
 		case STATE_ERROR: return EXIT_ERROR;
@@ -549,12 +589,12 @@ int8_t HttpCodec_encode(HttpCodec encoder, char* buf, uint32_t* len) {
 	return EXIT_ERROR;
 }
 int8_t decodeInitPhase(HttpCodec decoder, char* buf, uint32_t* pos, uint32_t len) {
-	decoder->temp = decoder->conn->data;
-	//MemBlock_bind(&decoder->temp, decoder->conn->data, INIT_DATA_SIZE);
-	decoder->temp.len = 1;
-	decoder->temp.last = 1;
-	decoder->cursor = HTTP_HEADER_NUM;
-	decoder->step = 0;
+	decoder->temp = &decoder->conn->data;
+	/* skip the first 1 Byte to avoid bug */
+	decoder->cursor    = HTTP_HEADER_NUM;
+	decoder->step      = 0;
+	////////////
+	decoder->sep = 0;
 	if(decoder->conn->type ^ HTTP_RES) {
 		decoder->phaseHandler = decodeReqStatusPhase;
 	} else {
@@ -566,19 +606,22 @@ int8_t decodeInitPhase(HttpCodec decoder, char* buf, uint32_t* pos, uint32_t len
 int8_t decodeReqStatusPhase(HttpCodec decoder, char* buf, uint32_t* pos, uint32_t len) {
 	/* local variables for data inside HttpEncoder */
 	HttpConnection req = decoder->conn;
-	MemBlock temp = &decoder->temp;
+	MemBlock temp = decoder->temp;
 	uint32_t pindex = *pos;
 	/* should be written when PEND */
-	int32_t  hash = decoder->hash;
+	uint32_t hash = decoder->hash;
 	uint8_t  step = decoder->step;
+	uint32_t sep  = decoder->sep;
 	/* temporary variables */
 	int8_t   ret;
 	char     ch;
+	uint32_t begin, end;
 	
 	/* state entry navigation */
 	switch(step) {
 		case REQL_METHOD: goto ENTRY_METHOD;
 		case REQL_PATH:   goto ENTRY_PATH;
+		case REQL_QUERY:  goto ENTRY_QUERY;
 		case REQL_VER:    goto ENTRY_VER;
 		case REQL_EOL:    goto ENTRY_EOL;
 	}
@@ -589,8 +632,7 @@ ENTRY_METHOD:
 			HASH(hash, ch);
 		} else {
 			step = REQL_PATH;
-			hash &= 0x7FFFFFFF;
-			ret = find_method(hash);
+			ret = FindMethod(hash);
 			if(ret == -1) {
 				assert(0);
 				goto EXIT_ERROR;
@@ -602,19 +644,60 @@ ENTRY_METHOD:
 	}
 	goto EXIT_PEND;
 ENTRY_PATH:
+	begin = pindex;
 	while(pindex ^ len) {
 		ch = buf[pindex++];
-		if(LIKELY(URL_TOKEN_MAP[ch])) {
-			MemBlock_putChar(temp, ch);
+		if(LIKELY(URL_TOKEN_MAP[ch]) && ch ^ QS) {
+			if(ch == SL) {
+				sep = 0;
+			} else {
+				++sep;
+			}
+		} else if(ch == QS) {
+			end = pindex - 1;
+			MemBlock_putStrN(temp, buf + begin, end - begin);
+			if(sep) {
+				req->pathinfo = temp->len - sep;
+			}
+			req->path = MemBlock_getStr(temp);
+			step = REQL_QUERY;
+			goto ENTRY_QUERY;
 		} else if(ch == SP) {
+			/* path process is done */
+			end = pindex - 1;
+			MemBlock_putStrN(temp, buf + begin, end - begin);
+			if(sep) {
+				req->pathinfo = temp->len - sep;
+			}
+			req->path = MemBlock_getStr(temp);
 			step = REQL_VER;
-			req->str = MemBlock_getStr(temp);
 			goto ENTRY_VER;
 		} else {
 			assert(0);
 			goto EXIT_ERROR;
 		}
 	}
+	end = pindex;
+	MemBlock_putStrN(temp, buf + begin, end - begin);
+	goto EXIT_PEND;
+ENTRY_QUERY:
+	begin = pindex;
+	while(pindex ^ len) {
+		ch = buf[pindex++];
+		if(LIKELY(URL_TOKEN_MAP[ch])) {
+		} else if(ch == SP) {
+			end = pindex - 1;
+			MemBlock_putStrN(temp, buf + begin, end - begin);
+			req->query = MemBlock_getStr(temp);
+			step = REQL_VER;
+			goto ENTRY_VER;
+		} else {
+			assert(0);
+			goto EXIT_ERROR;
+		}
+	}
+	end = pindex;
+	MemBlock_putStrN(temp, buf + begin, end - begin);
 	goto EXIT_PEND;
 ENTRY_VER:
 	while(pindex ^ len) {
@@ -624,7 +707,7 @@ ENTRY_VER:
 		} else {
 			step = REQL_EOL;
 			hash &= 0x7FFFFFFF;
-			ret = find_version(hash);
+			ret = FindVersion(hash);
 			if(ret == -1) {
 				assert(0);
 				goto EXIT_ERROR;
@@ -651,6 +734,7 @@ EXIT_DONE:
 	*pos = pindex;
 	return EXIT_DONE;
 EXIT_PEND:
+	decoder->sep  = sep;
 	decoder->step = step;
 	decoder->hash = hash;
 	*pos = pindex;
@@ -662,7 +746,7 @@ EXIT_ERROR:
 int8_t decodeResStatusPhase(HttpCodec decoder, char* buf, uint32_t* pos, uint32_t len) {
 	/* local variables for data inside HttpEncoder */
 	HttpConnection res = decoder->conn;
-	MemBlock temp = &decoder->temp;
+	MemBlock temp = decoder->temp;
 	uint32_t pindex = *pos;
 	/* should be written when PEND */
 	int32_t  hash = decoder->hash;
@@ -686,7 +770,7 @@ ENTRY_VER:
 			HASH(hash, ch);
 		} else {
 			hash &= 0x7FFFFFFF;
-			ret = find_version(hash);
+			ret = FindVersion(hash);
 			if(ret == -1) {
 				assert(0);
 				goto EXIT_ERROR;
@@ -755,7 +839,7 @@ EXIT_ERROR:
 int8_t decodeFieldPhase(HttpCodec decoder, char* buf, uint32_t* pos, uint32_t len) {
 	/* local variable for data inside HttpDecoder */
 	HttpConnection conn = decoder->conn;
-	MemBlock temp = &decoder->temp;
+	MemBlock temp = decoder->temp;
 	uint32_t pindex = *pos;
 	/* variables below should be write when PEND */
 	uint32_t hash = decoder->hash;
@@ -819,7 +903,7 @@ ENTRY_SEP:
 	}
 	ch = buf[pindex++];
 	if(LIKELY(ch == SP)) {
-		fld = find_header(hash);
+		fld = FindHeader(hash);
 		if(LIKELY(fld ^ HH_INVALID)) {
 			MemBlock_rollback(temp);
 		} else {
@@ -920,8 +1004,6 @@ int8_t HttpCodec_decode(HttpCodec decoder, char* buf, uint32_t* len) {
 				}
 			}
 			decoder->state = STATE_DONE;
-			MemBlock_clear(&decoder->temp);
-			//decoder->temp.ptr = NULL;
 			*len = pos;
 			return EXIT_DONE;
 		case STATE_DONE:  return EXIT_DONE;

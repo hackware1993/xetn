@@ -8,6 +8,13 @@
 
 #define PRIVATE static
 
+enum {
+	HOST_TRANSED = 0x01,
+	PATHINFO_TRANSED = 0x02,
+	PATH_TRANSED = 0x06,
+	QUERY_TRANSED = 0x08,
+};
+
 extern http_header_t HttpHeader_find(uint32_t, uint32_t);
 
 HttpConnection HttpConnection_init(HttpConnection conn, http_type_t type) {
@@ -32,13 +39,12 @@ const char* HttpConnection_getStatusStr(HttpConnection conn) {
 	return STATUS_DESC[conn->code];
 }
 
-const char* HttpConnection_decodePath(HttpConnection conn) {
-	char*   path = (char*)(conn->data.ptr + conn->str);
+PRIVATE inline const char* DecodeStr(char* str) {
 	char    temp;
 	uint8_t ch;
-	int8_t  mode = 0;
-	char*   pstr = path;
-	char*   p    = path;
+	uint8_t mode = 0;
+	char*   pstr = str;
+	char*   p    = str;
 	while((ch = *p++) != '\0') {
 		if(mode == 0) {
 			if(ch ^ '%') {
@@ -68,20 +74,55 @@ const char* HttpConnection_decodePath(HttpConnection conn) {
 	} else {
 		return NULL;
 	}
-	return path;
+	return str;
 }
 
 const char* HttpConnection_getPath(HttpConnection conn) {
-	return (const char*)(conn->data.ptr + conn->str);
+	if(conn->path == 0) {
+		return NULL;
+	}
+	void* pstr = conn->data.ptr + conn->path;
+	if(conn->flags & PATH_TRANSED) {
+		return (const char*)pstr;
+	}
+	conn->flags &= PATH_TRANSED;
+	return DecodeStr(pstr);
+}
+
+const char* HttpConnection_getPathInfo(HttpConnection conn) {
+	if(conn->pathinfo == 0) {
+		return NULL;
+	}
+	void* pstr = conn->data.ptr + conn->pathinfo;
+	if(conn->flags & PATHINFO_TRANSED) {
+		return (const char*)pstr;
+	}
+	conn->flags &= PATHINFO_TRANSED;
+	return DecodeStr(pstr);
+}
+
+const char* HttpConnection_getQuery(HttpConnection conn) {
+	if(conn->query == 0) {
+		return NULL;
+	}
+	void* pstr = conn->data.ptr + conn->query;
+	if(conn->flags & QUERY_TRANSED) {
+		return (const char*)pstr;
+	}
+	conn->flags &= QUERY_TRANSED;
+	return DecodeStr(pstr);
 }
 
 void HttpConnection_setPath(HttpConnection conn, const char* path) {
 	MemBlock data = &conn->data;
 	MemBlock_putStrN(data, path, strlen(path));
-	conn->str = MemBlock_getStr(data);
+	conn->path = MemBlock_getStr(data);
 }
 
 const char* HttpConnection_getHeader(HttpConnection conn, const char* name) {
+	if(name == NULL) {
+		return NULL;
+	}
 	const char* data = (const char*)conn->data.ptr;
 	uint32_t hash = 0;
 	const char* str = name;
@@ -108,6 +149,9 @@ const char* HttpConnection_getHeader(HttpConnection conn, const char* name) {
 }
 
 void HttpConnection_putHeader(HttpConnection conn, const char* name, const char* val) {
+	if(name == NULL || val == NULL) {
+		return;
+	}
 	MemBlock data = &conn->data;
 	uint32_t hash = 0;
 	const char* str = name;

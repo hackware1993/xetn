@@ -50,7 +50,10 @@ typedef struct http_connection {
 	unsigned    type :2;
 	unsigned    ver  :2;
 	unsigned    code :12;
-	uint32_t    str;
+	uint32_t    flags;
+	uint32_t    path;
+	uint32_t    pathinfo;
+	uint32_t    query;
 	uint32_t    fields[HEADER_MAX];
 	mem_block_t data;
 } http_connection_t, *HttpConnection;
@@ -61,8 +64,11 @@ HttpConnection HttpConnection_init(HttpConnection, http_type_t);
 #define        HttpConnection_getType(conn) (conn)->type      
 
 const char*    HttpConnection_decodePath(HttpConnection);
-const char*    HttpConnection_getPath(HttpConnection);
 void           HttpConnection_setPath(HttpConnection, const char*);
+
+const char*    HttpConnection_getPath(HttpConnection);
+const char*    HttpConnection_getPathInfo(HttpConnection);
+const char*    HttpConnection_getQuery(HttpConnection);
 
 #define        HttpConnection_getMethod(conn)    (conn)->code
 #define        HttpConnection_setMethod(conn, m) (conn)->code = (m)
