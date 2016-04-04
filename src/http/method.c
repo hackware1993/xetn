@@ -1,0 +1,16 @@
+#include "common.h"
+#include "http/method.h"
+
+#define XX(name) #name,
+const char* METHOD_NAME[] = {
+	METHOD_MAP(XX)
+};
+#undef XX
+
+uint64_t METHOD_HASH[16] = {
+	0x30ACD1B04, 0x000000000, 0x209B8068C, 0x400151EA3, 
+	0x000000000, 0x000000000, 0x10012BB22, 0x000000000, 
+	0x028D277B2, 0x6CD8DD611, 0x74C45783A, 0x000000000, 
+	0x000000000, 0x594977513, 0x000000000, 0x000000000, 
+};
+

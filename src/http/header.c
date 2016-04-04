@@ -1,37 +1,23 @@
-#include "connection.h"
+#include "common.h"
+#include "http/header.h"
 
-uint8_t URL_TOKEN_MAP[128] = {
-	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 
-	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 
-	0, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 
-	1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 0, 1, 
-	1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 
-	1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 0, 1, 
-	0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 
-	1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 0, 
+#define XX(a, b, c) c,
+const char* HEADER_NAME[] = {
+	HEADER_MAP(XX)
 };
+#undef XX
 
-uint8_t KEY_TOKEN_MAP[128] = {
-	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 
-	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 
-	0, 1, 0, 1, 1, 1, 1, 1, 0, 0, 1, 1, 0, 1, 1, 0, 
-	1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 
-	0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 
-	1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 
-	1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 
-	1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 0, 1, 0,
+#define XX(a, b, c) b,
+uint8_t HEADER_LEN[] = {
+	HEADER_MAP(XX)
 };
+#undef XX
 
-uint8_t VAL_TOKEN_MAP[128] = {
-	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 
-	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 
-	1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 
-	1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 
-	1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 
-	1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 
-	1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 
-	1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0,
+#define XX(a, b, c) #a,
+const char* HEADER_LABEL[] = {
+	HEADER_MAP(XX) 
 };
+#undef XX
 
 uint8_t  HEADER_INDEX[464] = {
 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x15, 0x32, 0x0E, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x3A, 0xFF, 
@@ -125,65 +111,4 @@ uint32_t HEADER_HASH[464] = {
 0x00000000, 0x88330D8B, 0x00000000, 0xE5D8E551, 0x56C7118A, 0x00000000, 0x00000000, 0x00000000, 
 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000,
 };
-
-uint64_t VERSION_HASH[4] = {
-	0x69440D40, 0x169440D41, 0x0, 0x20B0B8CD7,
-};
-
-uint64_t METHOD_HASH[16] = {
-	0x30ACD1B04, 0x000000000, 0x209B8068C, 0x400151EA3, 
-	0x000000000, 0x000000000, 0x10012BB22, 0x000000000, 
-	0x028D277B2, 0x6CD8DD611, 0x74C45783A, 0x000000000, 
-	0x000000000, 0x594977513, 0x000000000, 0x000000000, 
-	/*
-	0x30ACD1B04, 0x0, 0x209B8068C, 0x400151EA3,
-	0x0, 0x0, 0x10012BB22, 0x64D8DD611, 
-	0x28D277B2, 0x0, 0x74C45783A, 0x514977513,
-	0x0, 0x0, 0x0, 0x0,
-	*/
-};
-
-uint8_t ALPHA_HEX[] = {
-	0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
-	0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 
-	0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
-	0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 
-	0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
-	0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 
-	0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
-	0x08, 0x09, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 
-	0xFF, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0xFF,
-	0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 
-	0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
-	0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 
-	0xFF, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0xFF,
-	0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 
-	0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
-	0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
-};
-
-#define XX(name) #name,
-const char* METHOD_NAME[] = { METHOD_MAP(XX) };
-#undef XX
-#define XX(tag, name) #name,
-const char* VERSION_NAME[] = { VERSION_MAP(XX) };
-#undef XX
-#define XX(a, b, c) c,
-const char* HEADER_NAME[] = { HEADER_MAP(XX) };
-#undef XX
-#define XX(a, b, c) b,
-uint8_t HEADER_LEN[] = { HEADER_MAP(XX) };
-#undef XX
-#define XX(a, b, c) #a,
-const char* HEADER_LABEL[] = { HEADER_MAP(XX) };
-#undef XX
-#define XX(a, b, c) b,
-uint16_t STATUS_NUM[] = { STATUS_MAP(XX) };
-#undef XX
-#define XX(a, b, c) #b,
-const char* STATUS_CODE[] = { STATUS_MAP(XX) };
-#undef XX
-#define XX(a, b, c) c,
-const char* STATUS_DESC[] = { STATUS_MAP(XX) };
-#undef XX
 

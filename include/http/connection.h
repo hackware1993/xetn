@@ -1,36 +1,11 @@
 #ifndef _HTTP_CONNECTION_
 #define _HTTP_CONNECTION_
 
-#include "../memblock.h"
-#include "header.h"
-#include "status.h"
-
-#define METHOD_MAP(XX) \
-	XX(OPTIONS)        \
-	XX(GET)            \
-	XX(HEAD)           \
-	XX(POST)           \
-	XX(PUT)            \
-	XX(DELETE)         \
-	XX(TRACE)          \
-	XX(CONNECT)
-
-#define VERSION_MAP(XX)   \
-	XX(HTTP1_0, HTTP/1.0) \
-	XX(HTTP1_1, HTTP/1.1) \
-	XX(HTTP2_0, HTTP/2)
-
-#define XX(tag, name) tag,
-typedef enum http_version {
-	VERSION_MAP(XX)
-} http_version_t;
-#undef XX
-
-#define XX(index) HTTP_##index,
-typedef enum http_method {
-	METHOD_MAP(XX)
-} http_method_t;
-#undef XX
+#include "memblock.h"
+#include "http/header.h"
+#include "http/status.h"
+#include "http/method.h"
+#include "http/version.h"
 
 #define HEADER_MAX 128
 #define INIT_DATA_SIZE 1024

@@ -2,7 +2,7 @@
 #define _HTTP_PARSER_H_
 
 #include <stdint.h>
-#include "../memblock.h"
+#include "memblock.h"
 #include "connection.h"
 
 enum {

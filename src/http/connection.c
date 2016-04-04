@@ -1,5 +1,5 @@
-#include "connection.h"
-#include "datamap.h"
+#include "http/connection.h"
+#include "http/misc.h"
 #include <stdlib.h>
 #include <string.h>
 
@@ -9,10 +9,10 @@
 #define PRIVATE static
 
 enum {
-	HOST_TRANSED = 0x01,
+	HOST_TRANSED     = 0x01,
 	PATHINFO_TRANSED = 0x02,
-	PATH_TRANSED = 0x06,
-	QUERY_TRANSED = 0x08,
+	PATH_TRANSED     = 0x06,
+	QUERY_TRANSED    = 0x08,
 };
 
 extern http_header_t HttpHeader_find(uint32_t, uint32_t);

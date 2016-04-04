@@ -3,9 +3,9 @@
 //#include <x86intrin.h>
 #include <assert.h>
 #include <string.h>
-#include "../common.h"
-#include "codec.h"
-#include "datamap.h"
+#include "common.h"
+#include "http/codec.h"
+#include "http/misc.h"
 
 /* main state of http codec */
 enum {
