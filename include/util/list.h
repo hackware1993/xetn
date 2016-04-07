@@ -22,21 +22,38 @@ typedef struct dlink {
 
 /* LinkList can be used as stack or list */
 /* BUT DO NOT use them together */
-typedef struct link_list {
+typedef struct slink_list {
 	SLink  list;
 	size_t len;
-} link_list_t, *LinkList;
+} slink_list_t, *SLinkList;
 
-LinkList LinkList_init(LinkList);
-void     LinkList_free(LinkList, Element_free);
-void     LinkList_clear(LinkList);
-void     LinkList_put(LinkList, SLink);
-SLink    LinkList_get(LinkList);
-void     LinkList_push(LinkList, SLink);
-SLink    LinkList_pop(LinkList);
-void     LinkList_append(LinkList, LinkList);
-void     LinkList_inverse(LinkList);
-#define  LinkList_length(l) ((l)->len)
+SLinkList SLinkList_init(SLinkList);
+void     SLinkList_free(SLinkList, Element_free);
+void     SLinkList_clear(SLinkList);
+void     SLinkList_put(SLinkList, SLink);
+SLink    SLinkList_get(SLinkList);
+void     SLinkList_push(SLinkList, SLink);
+SLink    SLinkList_pop(SLinkList);
+void     SLinkList_append(SLinkList, SLinkList);
+void     SLinkList_inverse(SLinkList);
+#define  SLinkList_length(l) ((l)->len)
+
+typedef struct dlink_list {
+	DLink list;
+	size_t len;
+} dlink_list_t, *DLinkList;
+
+DLinkList DLinkList_init(DLinkList);
+void      DLinkList_free(DLinkList, Element_free);
+void      DLinkList_clear(DLinkList);
+void      DLinkList_remove(DLinkList, DLink);
+void      DLinkList_put(DLinkList, DLink);
+DLink     DLinkList_get(DLinkList);
+void      DLinkList_push(DLinkList, DLink);
+DLink     DLinkList_pop(DLinkList);
+void      DLinkList_append(DLinkList, DLinkList);
+void      DLinkList_inverse(DLinkList);
+#define   DLinkList_length(l) ((l)->len)
 
 /* ArrayList can append itself automatically */
 typedef struct array_list {

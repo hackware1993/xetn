@@ -1,19 +1,17 @@
-#include "list.h"
-#include "../optimize.h"
+#include "common.h"
+#include "util/list.h"
 
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
 
-#define PRIVATE static
-
-LinkList LinkList_init(LinkList li) {
+SLinkList SLinkList_init(SLinkList li) {
 	li->list = NULL;
 	li->len  = 0;
 	return li;
 }
 
-void LinkList_clear(LinkList li) {
+void SLinkList_clear(SLinkList li) {
 	size_t i;
 	SLink p = li->list->next;
 	SLink temp;
@@ -26,14 +24,13 @@ void LinkList_clear(LinkList li) {
 	li->len  = 0;
 }
 
-void LinkList_free(LinkList li, Element_free free_cb) {
+void SLinkList_free(SLinkList li, Element_free free_cb) {
 	size_t i;
 	SLink p = li->list->next;
 	SLink temp;
 	for(i = 0; i < li->len; ++i) {
 		temp = p;
 		p = p->next;
-		temp->next = NULL;
 		if(free_cb == NULL) {
 			free(temp);
 		} else {
@@ -44,7 +41,7 @@ void LinkList_free(LinkList li, Element_free free_cb) {
 	li->len  = 0;
 }
 
-void LinkList_append(LinkList dest, LinkList src) {
+void SLinkList_append(SLinkList dest, SLinkList src) {
 	if(UNLIKELY(src->len == 0)) {
 		return;
 	}
@@ -63,7 +60,10 @@ void LinkList_append(LinkList dest, LinkList src) {
 }
 
 /* put node to the list as new tail */
-void LinkList_put(LinkList li, SLink le) {
+void SLinkList_put(SLinkList li, SLink le) {
+	if(UNLIKELY(le == NULL)) {
+		return;
+	}
 	SLink tail = li->list;
 	/* check if the list is empty */
 	if(LIKELY(tail != NULL)) {
@@ -81,7 +81,7 @@ void LinkList_put(LinkList li, SLink le) {
 }
 
 /* get node from list as old head */
-SLink LinkList_get(LinkList li) {
+SLink SLinkList_get(SLinkList li) {
 	SLink tail = li->list;
 	/* of course, return NULL if the list is empty */
 	if(UNLIKELY(tail == NULL)) {
@@ -101,7 +101,10 @@ SLink LinkList_get(LinkList li) {
 	return head;
 }
 
-void LinkList_push(LinkList li, SLink le) {
+void SLinkList_push(SLinkList li, SLink le) {
+	if(UNLIKELY(le == NULL)) {
+		return;
+	}
 	SLink tail = li->list;
 	if(LIKELY(tail != NULL)) {
 		le->next = tail->next;
@@ -113,7 +116,7 @@ void LinkList_push(LinkList li, SLink le) {
 	++li->len;
 }
 
-SLink LinkList_pop(LinkList li) {
+SLink SLinkList_pop(SLinkList li) {
 	SLink tail = li->list;
 	if(UNLIKELY(tail == NULL)) {
 		return NULL;
@@ -130,18 +133,193 @@ SLink LinkList_pop(LinkList li) {
 	return head;
 }
 
-void LinkList_inverse(LinkList li) {
-	SLink cur_node = li->list;
-	SLink pnext = cur_node->next;
-	SLink nxt_node = NULL;
-	li->list = pnext;
-	size_t i;
-	for(i = 0; i < li->len; ++i) {
-		nxt_node = pnext;
-		pnext    = nxt_node->next;
-		nxt_node->next = cur_node;
-		cur_node = nxt_node;
+void SLinkList_inverse(SLinkList li) {
+	if(UNLIKELY(li->list == NULL)) {
+		return;
 	}
+	SLink last = li->list;
+	SLink cur  = last->next;
+	SLink next = NULL;
+	size_t len = li->len;
+	for(size_t i = 0; i < len; ++i) {
+		next = cur->next;
+		cur->next = last;
+		last = cur;
+		cur  = next;
+	}
+	li->list = cur;
+}
+
+DLinkList DLinkList_init(DLinkList li) {
+	li->list = NULL;
+	li->len  = 0;
+	return li;
+}
+
+void DLinkList_free(DLinkList li, Element_free free_cb) {
+	size_t i;
+	DLink p = li->list;
+	DLink temp;
+	for(i = 0; i < li->len; ++i) {
+		temp = p;
+		p = p->next;
+		if(free_cb == NULL) {
+			free(temp);
+		} else {
+			free_cb(temp);
+		}
+	}
+	li->list = NULL;
+	li->len  = 0;
+}
+
+void DLinkList_clear(DLinkList li) {
+	size_t i;
+	DLink p = li->list;
+	DLink temp;
+	for(i = 0; i < li->len; ++i) {
+		temp = p;
+		p = p->next;
+		temp->next = NULL;
+		temp->prev = NULL;
+	}
+	li->list = NULL;
+	li->len  = 0;
+}
+
+void DLinkList_remove(DLinkList li, DLink le) {
+	if(li->list == NULL) {
+		return;
+	}
+	DLink prev = le->prev;
+	DLink next = le->next;
+	prev->next = next;
+	next->prev = prev;
+	if(li->list == le) {
+		if(li->len == 1) {
+			li->list = NULL;
+		} else {
+			li->list = next;
+		}
+	}
+}
+
+void DLinkList_put(DLinkList li, DLink le) {
+	if(UNLIKELY(le == NULL)) {
+		return;
+	}
+	DLink head = li->list;
+	if(LIKELY(head)) {
+		DLink tail = head->prev;
+		tail->next = le;
+		head->prev = le;
+		le->prev   = tail;
+		le->next   = head;
+	} else {
+		li->list  = le;
+		le->next  = le;
+		le->prev  = le;
+	}
+	++li->len;
+}
+
+DLink DLinkList_get(DLinkList li) {
+	if(UNLIKELY(li->list == NULL)) {
+		return NULL;
+	}
+	DLink res = li->list;
+	if(LIKELY(li->len > 1)) {
+		DLink head = res->next;
+		DLink tail = res->prev;
+		tail->next = head;
+		head->prev = tail;
+		li->list   = head;
+	} else {
+		li->list = NULL;
+	}
+	--li->len;
+	res->prev = NULL;
+	res->next = NULL;
+	return res;
+}
+
+void DLinkList_push(DLinkList li, DLink le) {
+	if(UNLIKELY(le == NULL)) {
+		return;
+	}
+	DLink head = li->list;
+	if(LIKELY(head != NULL)) {
+		DLink tail = head->prev;
+		tail->next = le;
+		head->prev = le;
+		le->next = head;
+		le->prev = tail;
+		li->list = le;
+	} else {
+		li->list = le;
+		le->next = le;
+		le->prev = le;
+	}
+	++li->len;
+}
+
+DLink DLinkList_pop(DLinkList li) {
+	if(UNLIKELY(li->list == NULL)) {
+		return NULL;
+	}
+	DLink res = li->list;
+	if(LIKELY(li->len > 1)) {
+		DLink tail = res->prev;
+		DLink head = res->next;
+		tail->next = head;
+		head->prev = tail;
+		li->list = head;
+	} else {
+		li->list = NULL;
+	}
+	--li->len;
+	res->next = NULL;
+	res->prev = NULL;
+	return res;
+}
+
+void DLinkList_inverse(DLinkList li) {
+	if(UNLIKELY(li->list == NULL)) {
+		return;
+	}
+	DLink cur  = li->list;
+	DLink temp = NULL;
+	size_t len = li->len;
+	for(size_t i = 0; i < len; ++i) {
+		temp = cur->next;
+		cur->next = cur->prev;
+		cur->prev = temp;
+		cur = temp;
+	}
+	li->list = cur->next;
+}
+
+void DLinkList_append(DLinkList dest, DLinkList src) {
+	if(UNLIKELY(src->len == 0)) {
+		return;
+	}
+	if(LIKELY(dest->list != NULL)) {
+		DLink dhead = dest->list;
+		DLink dtail = dhead->prev;
+		DLink shead = src->list;
+		DLink stail = shead->prev;
+
+		dtail->next = shead;
+		shead->prev = dtail;
+		stail->next = dhead;
+		dhead->prev = stail;
+	} else {
+		dest->list = src->list;
+	}
+	dest->len += src->len;
+	/* reset src list*/
+	src->list = NULL;
+	src->len = 0;
 }
 
 ArrayList ArrayList_init(ArrayList li, size_t len) {
