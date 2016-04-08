@@ -10,14 +10,25 @@
 #include "stream.h"
 #include "log.h"
 #include "io.h"
+#include "common.h"
 
 #define LOG_BUF_LEN 4096
 
-#define XX(a, b) b,
+#define XX(a, b, c) b,
 const char* LOG_STR[] = {
 	LOG_LV(XX)
 };
 #undef XX
+
+#define XX(a, b, c) c,
+const uint8_t LOG_STR_LEN[] = {
+	LOG_LV(XX)
+};
+#undef XX
+
+PRIVATE inline int Log_persist(Log logger) {
+	return 0;
+}
 
 Log Log_init(Log logger) {
 	int fd[2];
@@ -41,7 +52,7 @@ Log Log_getClient(Log logger) {
 Log Log_getServer(Log logger, const char* filename) {
 	/* log server is also a client */
 	//Handler_close(&logger->client);
-	logger->data = (char*)calloc(1, 4096);
+	logger->data = (char*)calloc(1, LOG_BUF_LEN);
 	int fd = open(filename, O_CREAT | O_WRONLY | O_APPEND, 0644);
 	if(fd == -1) {
 		perror("Log_getServer");
@@ -66,17 +77,24 @@ void Log_close(Log logger) {
 }
 
 void Log_record(Log logger, log_level_t level, const char* fmt, ...) {
-	char buf[1024];
+	char buf[2048];
+	char* p = buf;
+	uint8_t ls = LOG_STR_LEN[level];
+	strncpy(p, LOG_STR[level], ls);
+	p += ls;
+	*p++ = ' ';
+	time_t tnow = time(NULL);
+	DateTime_formatTimeStamp(&tnow, p);
+	p += TIMESTAMP_LEN - 1;
+	/* separator "%s - %s" */
+	*p++ = ' '; *p++ = '-'; *p++ = ' ';
 	va_list varg;
 	va_start(varg, fmt);
-	vsnprintf(buf, 1024, fmt, varg);
+	vsnprintf(p, 2000, fmt, varg);
 	va_end(varg);
-	char item[2048];
-	char dt[20] = {0};
-	time_t tnow = time(NULL);
-	DateTime_formatTimeStamp(&tnow, dt);
-	size_t len = snprintf(item, 2048, "[%s] %s - %s\n", LOG_STR[level], dt, buf);
-	int8_t ret = IO_writeSpec(&logger->client, item, &len);
+	size_t len = strlen(buf);
+	buf[len++] = '\n';
+	int8_t ret = IO_writeSpec(&logger->client, buf, &len);
 	assert(ret == 0);
 }
 
@@ -92,14 +110,18 @@ void* Log_main(void* arg) {
 		len -= nread;
 		nread = len;
 		if(len == 0) {
-			IO_writeSpec(&logger->logfile, buf, &off);
+			ret = IO_writeSpec(&logger->logfile, buf, &off);
+			if(ret == -1) {
+				perror("Log_main::write");
+				exit(-1);
+			}
 			off   = 0;
 			len   = LOG_BUF_LEN;
 			nread = LOG_BUF_LEN;
 		}
 	}
 	if(ret == -1) {
-		perror("Log_main");
+		perror("Log_main::write");
 		exit(-1);
 	}
 	/* peer shutdown */
@@ -133,7 +155,7 @@ int main() {
 		Log_close(client);
 		exit(0);
 	}
-	Log serv = Log_getServer(&logger, "./log/log.txt");
+	Log serv = Log_getServer(&logger, "./log.txt");
 	Log_record(serv, LOG_WARN, "log start");
 	Log_runServer(serv);
 	wait(NULL);

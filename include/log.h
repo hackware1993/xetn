@@ -6,11 +6,11 @@
 #include "handler.h"
 
 #define LOG_LV(XX) \
-	XX(LOG_INFO , "INFO"   ) \
-	XX(LOG_WARN , "WARNING") \
-	XX(LOG_ERROR, "ERROR"  )
+	XX(LOG_INFO , "[INFO]"   , 6) \
+	XX(LOG_WARN , "[WARNING]", 9) \
+	XX(LOG_ERROR, "[ERROR]"  , 7)
 
-#define XX(a, b) a,
+#define XX(a, b, c) a,
 typedef enum log_level {
 	LOG_LV(XX)
 } log_level_t;
@@ -22,6 +22,7 @@ typedef struct log {
 	handler_t  logfile;
 	pthread_t  tid;
 	char*      data;
+	unsigned   len;
 } log_t, *Log;
 
 Log Log_init(Log);
