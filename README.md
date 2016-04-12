@@ -3,17 +3,17 @@ A simple web application server written in C.
 
 ### Module
 
-* [x] Reactor(partly)
+* [x] Reactor(almost)
 * [x] Coroutine
 * [x] HttpCodec
 * [x] Logger
-* [ ] ThreadPool
+* [x] ThreadPool(partly)
 * [ ] WsgiCodec(ongoing)
-* [ ] mempool
+* [ ] MemPool
 
 ### Dependency
 
-* json-c
+* json-c(conf)
 * pcre
 * luajit2
-* cmocka
+* cmocka(unit test)
