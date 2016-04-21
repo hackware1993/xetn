@@ -374,17 +374,21 @@ Handler TcpClient_create(Handler sock, const char* url, NetOption oplist) {
 }
 
 Handler TcpServer_accept(Handler sock, Handler target, NetOption oplist) {
-	fd_t fd = accept(sock->fileno, NULL, NULL);
+	fd_t fd;
+AGAIN:
+	fd = accept(sock->fileno, NULL, NULL);
 	if(fd == -1) {
-		/* EAGAIN MUST be chcked under nonblocking mode */
-		if(errno == EAGAIN) {
-			return NULL;
+		switch(errno) {
+			/* EAGAIN MUST be chcked under nonblocking mode */
+			case EAGAIN: return NULL;
+			case EPROTO:
+			case ECONNABORTED:
+				goto AGAIN;
+			default: error_exit(1, TcpServer_accept::accept);
 		}
-                              
-		error_exit(1, TcpServer_accept::accept);
 	}
 	target->fileno = fd;
-	target->type = H_SOCK;
+	target->type   = H_SOCK;
 	if(oplist != NULL) {
 		int stat = SockOption_handle(target, oplist);
 		error_exit(stat == -1, TcpServer_accept:netoption);
@@ -402,14 +406,18 @@ Handler Socket_create(Handler target) {
 
 /* repeat until getting NULL under nonblocking mode */
 Handler Socket_accept(Handler sock, Handler target) {
-	fd_t fd = accept(sock->fileno, NULL, NULL);
+	fd_t fd;
+AGAIN:
+	fd = accept(sock->fileno, NULL, NULL);
 	if(fd == -1) {
 		/* EAGAIN MUST be chcked under nonblocking mode */
-		if(errno == EAGAIN) {
-			return NULL;
+		switch(errno) {
+			case EAGAIN: return NULL;
+			case EPROTO:
+			case ECONNABORTED:
+				goto AGAIN;
+			default: error_exit(1, Socket_accept);
 		}
-                              
-		error_exit(1, Socket_accept);
 	}
 	target->fileno = fd;
 	target->type = H_SOCK;
