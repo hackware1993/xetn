@@ -6,8 +6,6 @@
  * Compatibility: Linux & FreeBSD
  */
 
-#include "common.h"
-
 #include <unistd.h>
 #include <stddef.h>
 #include <errno.h>
@@ -25,10 +23,13 @@
  *   -1 : an error occur, can be EAGAIN and others, judge with errno
  *   0  : success
  */
-PRIVATE INLINE int IO_write(Handler h, void* buf, size_t* len) {
-	int n = write(h->fileno, buf, *len);
+static inline int IO_write(Handler h, void* buf, size_t* len) {
+	int n;
+AGAIN:
+	n = write(h->fileno, buf, *len);
 	switch(n) {
 		case -1:
+			if(errno == EINTR) goto AGAIN;
 			*len = 0;
 			return -1;
 		default:
@@ -47,14 +48,17 @@ PRIVATE INLINE int IO_write(Handler h, void* buf, size_t* len) {
  *   -1 : an error occur, can be EAGAIN and others, judge with errno
  *   0  : success
  */
-PRIVATE INLINE int IO_read(Handler h, void* buf, size_t* len) {
-	int n = read(h->fileno, buf, *len);
+static inline int IO_read(Handler h, void* buf, size_t* len) {
+	int n;
+AGAIN:
+	n = read(h->fileno, buf, *len);
 	switch(n) {
 		/* END OF FILE */
 		case 0:
 			*len = 0;
 			return 1;
 		case -1:
+			if(errno == EINTR) goto AGAIN;
 			*len = 0;
 			return -1;
 		default:
@@ -73,7 +77,7 @@ PRIVATE INLINE int IO_read(Handler h, void* buf, size_t* len) {
  *   -1 : an error occur, can be EAGAIN and others, judge with errno
  *   0  : success
  */
-PRIVATE INLINE int IO_writeSpec(Handler h, void* buf, size_t* len) {
+static inline int IO_writeSpec(Handler h, void* buf, size_t* len) {
 	int    n      = 0;
 	size_t total  = *len;
 	size_t nwrite = total;
@@ -101,7 +105,7 @@ PRIVATE INLINE int IO_writeSpec(Handler h, void* buf, size_t* len) {
  *   0  : success
  *   1  : end of file (and RDHUP to stream socket)
  */
-PRIVATE INLINE int IO_readSpec(Handler h, void* buf, size_t* len) {
+static inline int IO_readSpec(Handler h, void* buf, size_t* len) {
 	int    n     = 0;
 	size_t total = *len;
 	size_t nread = total;
@@ -121,7 +125,7 @@ PRIVATE INLINE int IO_readSpec(Handler h, void* buf, size_t* len) {
 	return 0;
 }
 
-PRIVATE INLINE int IO_waitEvent(Handler h, int32_t to) {
+static inline int IO_waitEvent(Handler h, int32_t to) {
 	struct timeval* timeout = NULL;
 	struct timeval tv;
 	if(to >= 0) {
@@ -148,7 +152,7 @@ PRIVATE INLINE int IO_waitEvent(Handler h, int32_t to) {
  *   -1 : an error occur, can be EAGAIN and others, judge with errno
  *   0  : success
  */
-PRIVATE INLINE ssize_t IO_timedWrite(Handler h, void* buf, size_t* len, int32_t to) {
+static inline ssize_t IO_timedWrite(Handler h, void* buf, size_t* len, int32_t to) {
 	switch(IO_waitEvent(h, to)) {
 		case 0:  errno = ETIMEDOUT;
 		case -1: return -1;
@@ -166,7 +170,7 @@ PRIVATE INLINE ssize_t IO_timedWrite(Handler h, void* buf, size_t* len, int32_t 
  *   -1 : an error occur, can be EAGAIN and others, judge with errno
  *   0  : success
  */
-PRIVATE INLINE ssize_t IO_timedRead(Handler h, void* buf, size_t* len, int32_t to) {
+static inline ssize_t IO_timedRead(Handler h, void* buf, size_t* len, int32_t to) {
 	switch(IO_waitEvent(h, to)) {
 		case 0:  errno = ETIMEDOUT;
 		case -1: return -1;
@@ -184,7 +188,7 @@ PRIVATE INLINE ssize_t IO_timedRead(Handler h, void* buf, size_t* len, int32_t t
  *   -1 : an error occur, can be EAGAIN and others, judge with errno
  *   0  : success
  */
-PRIVATE INLINE ssize_t IO_timedWriteSpec(Handler h, void* buf, size_t* len, int32_t to) {
+static inline ssize_t IO_timedWriteSpec(Handler h, void* buf, size_t* len, int32_t to) {
 	switch(IO_waitEvent(h, to)) {
 		case 0:  errno = ETIMEDOUT;
 		case -1: return -1;
@@ -203,7 +207,7 @@ PRIVATE INLINE ssize_t IO_timedWriteSpec(Handler h, void* buf, size_t* len, int3
  *   0  : success
  *   1  : end of file (and RDHUP to stream socket)
  */
-PRIVATE INLINE ssize_t IO_timedReadSpec(Handler h, void* buf, size_t* len, int32_t to) {
+static inline ssize_t IO_timedReadSpec(Handler h, void* buf, size_t* len, int32_t to) {
 	switch(IO_waitEvent(h, to)) {
 		case 0:  errno = ETIMEDOUT;
 		case -1: return -1;
