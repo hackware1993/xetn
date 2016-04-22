@@ -367,8 +367,18 @@ Handler TcpClient_create(Handler sock, const char* url, NetOption oplist) {
 		error_exit(stat == -1, TcpClient_create:netoption);
 	}
 
+AGAIN:
 	stat = connect(fd, psa, sizeof(sockaddr_t));
-	error_exit(stat == -1, TcpClient_create::connect);
+	if(stat == -1) {
+		switch(errno) {
+			case EINTR:
+				goto AGAIN;
+			case EINPROGRESS:
+				break;
+			default:
+				error_exit(stat == -1, TcpClient_create::connect);
+		}
+	}
 
 	return sock;
 }
@@ -381,8 +391,8 @@ AGAIN:
 		switch(errno) {
 			/* EAGAIN MUST be chcked under nonblocking mode */
 			case EAGAIN: return NULL;
-			case EPROTO:
-			case ECONNABORTED:
+			case EINTR:
+			case EPROTO: case ECONNABORTED:
 				goto AGAIN;
 			default: error_exit(1, TcpServer_accept::accept);
 		}
@@ -413,8 +423,8 @@ AGAIN:
 		/* EAGAIN MUST be chcked under nonblocking mode */
 		switch(errno) {
 			case EAGAIN: return NULL;
-			case EPROTO:
-			case ECONNABORTED:
+			case EINTR:
+			case EPROTO: case ECONNABORTED:
 				goto AGAIN;
 			default: error_exit(1, Socket_accept);
 		}
@@ -433,8 +443,20 @@ void Socket_listen(Handler sock, SockAddr addr) {
 }
 
 void Socket_connect(Handler sock, SockAddr addr) {
-	int32_t ret = connect(sock->fileno, addr, sizeof(struct sockaddr));
-	error_exit(ret == -1, Socket_connect);
+	int32_t ret;
+AGAIN:
+	ret = connect(sock->fileno, addr, sizeof(struct sockaddr));
+	if(ret == -1) {
+		switch(errno) {
+			case EINTR:
+				goto AGAIN;
+			case EINPROGRESS:
+				/* will return under nonblocking */
+				return;
+			default:
+				error_exit(ret == -1, Socket_connect);
+		}
+	}
 }
 
 void Socket_getLocalAddr(Handler sock, SockAddr addr) {
