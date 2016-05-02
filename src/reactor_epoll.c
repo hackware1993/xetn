@@ -44,8 +44,8 @@ void Reactor_register(Reactor re, Watcher wt) {
 	/* epoll processing */
 	uint32_t events = EPOLLET;
 	switch(wt->event) {
-		case XETN_READ:  events |= EPOLLIN;  break;
-		case XETN_WRITE: events |= EPOLLOUT; break;
+		case TRIG_EV_READ:  events |= EPOLLIN;  break;
+		case TRIG_EV_WRITE: events |= EPOLLOUT; break;
 	}
 	struct epoll_event epev;
 	epev.events = events;
@@ -67,7 +67,7 @@ void Reactor_unregister(Reactor re, Watcher wt) {
 	}
 }
 
-void Reactor_modEvent(Reactor re, Watcher wt, event_t ev) {
+void Reactor_modWatcherEvent(Reactor re, Watcher wt, event_t ev) {
 	fd_t fd = wt->handler.fileno;
 	if(Watcher_getEvent(wt) == ev) {
 		return;
@@ -76,8 +76,8 @@ void Reactor_modEvent(Reactor re, Watcher wt, event_t ev) {
 	/* epoll processing */
 	uint32_t events = EPOLLET;
 	switch(wt->event) {
-		case XETN_READ:  events |= EPOLLIN;  break;
-		case XETN_WRITE: events |= EPOLLOUT; break;
+		case TRIG_EV_READ:  events |= EPOLLIN;  break;
+		case TRIG_EV_WRITE: events |= EPOLLOUT; break;
 	}
 	struct epoll_event epev;
 	epev.events = events;
@@ -105,6 +105,8 @@ void Reactor_loop(Reactor re, int32_t to) {
 		rd_begin = MAXEVENT;
 		count = epoll_wait(epfd, events, MAXEVENT, to);
 		if(count == -1) {
+			perror("Reactor_loop");
+			exit(-1);
 			// TODO error processing
 		}
 		ev_end = events + count;
@@ -118,11 +120,13 @@ void Reactor_loop(Reactor re, int32_t to) {
 		/* process event fd queue */
 		for(uint8_t i = 0; i < wr_end; ++i) {
 			wt = ws[fds[i]];
-			wt->onWrite(wt);
+			//wt->onWrite(wt);
+			Watcher_process(wt);
 		}
 		for(uint8_t i = rd_begin; i < MAXEVENT; ++i) {
 			wt = ws[fds[i]];
-			wt->onRead(wt);
+			//wt->onRead(wt);
+			Watcher_process(wt);
 		}
 	}
 }

@@ -53,14 +53,14 @@ static inline int IO_read(Handler h, void* buf, size_t* len) {
 AGAIN:
 	n = read(h->fileno, buf, *len);
 	switch(n) {
-		/* END OF FILE */
-		case 0:
-			*len = 0;
-			return 1;
 		case -1:
 			if(errno == EINTR) goto AGAIN;
 			*len = 0;
 			return -1;
+		/* END OF FILE */
+		case 0:
+			*len = 0;
+			return 1;
 		default:
 			*len = n;
 	}
