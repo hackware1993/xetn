@@ -11,18 +11,22 @@
 #include "xetn.h"
 #include "net.h"
 #include "reactor.h"
-#include "servwatcher.h"
+#include "service.h"
+#include "mime.h"
 
 xetn_context_t xetn_ctx;
 
 int Xetn_workerMain(void* args) {
+	Log log = &Xetn_getContext().logger;
+	Log_getClient(log);
+	Log_record(log, LOG_INFO, "Work start");
 	printf("Main start\n");
 	Watcher wt = (Watcher)args;
 	reactor_t re;
 	Reactor reactor = Reactor_init(&re);
 	Reactor_register(reactor, wt);
-	/* only wair for 200ms */
 	printf("Loop start\n");
+	Log_record(log, LOG_INFO, "Loop start");
 	Reactor_loop(reactor, -1);
 	Reactor_close(reactor);
 	return 0;
@@ -85,13 +89,22 @@ void Xetn_processParam(int argc, char* argv[]) {
 	}
 }
 
+/* add modules that should be initialized */
+void Xetn_initModule() {
+	Mime_initModule();
+}
+
+void Xetn_initContext() {
+	Log_init(&Xetn_getContext().logger);
+}
+
 int main(int argc, char* argv[]) {
-	int np = 3;
-	int fd[2];
+	int np = 1;
 	int pid[np];
 	int ptest = 1;
 	int ret;
 	struct rlimit limit;
+	/* enlarge the current limitition of file descriptors */
 	ret = getrlimit(RLIMIT_NOFILE, &limit);
 	if(ret == -1) {
 		perror("getrlimit");
@@ -103,15 +116,18 @@ int main(int argc, char* argv[]) {
 		perror("setrlimit");
 		exit(-1);
 	}
-	ret = socketpair(AF_UNIX, SOCK_STREAM, 0, fd);
-	handler_t log = {H_SOCK, fd[1]};
-	Xetn_getContext().hlog = log;
+
+	Xetn_initModule();
+	Xetn_initContext();
+
 	Xetn_initServHandler(&Xetn_getContext().hsvr);
 	Acceptor acc = Acceptor_new(&Xetn_getContext().hsvr);
 	for(int i = 0; i < np; ++i) {
 		pid[i] = Xetn_createWorker(Xetn_workerMain, acc);
 	}
+	Log_getServer(&Xetn_getContext().logger, "/tmp/xetn.log");
 
+	Log_runServer(&Xetn_getContext().logger);
 	for(int i = 0; i < np; ++i) {
 		Xetn_waitWorker(pid[i]);
 	}
