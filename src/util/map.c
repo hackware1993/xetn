@@ -1,4 +1,4 @@
-#include "map.h"
+#include "util/map.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -98,7 +98,6 @@ void* HashMap_get(HashMap map, const char* key) {
 	uint32_t index = hash % map->len;
 	HashNode p = map->bucket[index];
 	if(p) {
-		p->next;
 		HashNode end = p;
 		do {
 			if(p->hash == hash) {
@@ -111,27 +110,3 @@ void* HashMap_get(HashMap map, const char* key) {
 	return res;
 }
 
-/*
-#include <stdio.h>
-#include <assert.h>
-int main() {
-	hash_map_t map;
-	HashMap p = HashMap_init(&map);
-	int a = 123;
-	const char* keya = "sun";
-	int b = 456;
-	const char* keyb = "codesun";
-
-	void* ret;
-	ret  = HashMap_put(p, keya, &a);
-	assert(ret != NULL);
-	ret = HashMap_put(p, keyb, &b);
-	assert(ret != NULL);
-	printf("%s %d\n", keya, *(int*)HashMap_get(p, keya));
-	printf("%s %d\n", keyb, *(int*)HashMap_get(p, keyb));
-
-
-	HashMap_free(p);
-	return 0;
-}
-*/
