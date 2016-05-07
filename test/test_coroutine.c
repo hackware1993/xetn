@@ -1,4 +1,4 @@
-#include "../src/coroutine.h"
+#include "coroutine.h"
 
 #include <stdarg.h>
 #include <stddef.h>

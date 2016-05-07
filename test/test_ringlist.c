@@ -1,4 +1,4 @@
-#include "../src/list.h"
+#include "util/list.h"
 
 #include <stdarg.h>
 #include <stddef.h>
