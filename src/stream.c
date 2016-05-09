@@ -135,7 +135,7 @@ PipeStream PipeStream_init(PipeStream stream, Handler src, Handler dest) {
 	stream->src  = *src;
 	stream->dest = *dest;
 	if(src->type == H_SOCK) {
-		stream->buf = Buffer_new(1024);
+		stream->buf = Buffer_new(4096);
 	}
 	return stream;
 }
