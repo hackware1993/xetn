@@ -35,6 +35,7 @@ typedef struct http_connection {
 
 
 HttpConnection HttpConnection_init(HttpConnection, http_type_t);
+void           HttpConnection_clear(HttpConnection);
 #define        HttpConnection_close(conn)   MemBlock_free(&(conn)->data)
 #define        HttpConnection_getType(conn) (conn)->type      
 

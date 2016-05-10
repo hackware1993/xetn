@@ -2,6 +2,7 @@
 #include "http/misc.h"
 #include <stdlib.h>
 #include <string.h>
+#include <stddef.h>
 
 #include <assert.h>
 #include <stdio.h>
@@ -23,6 +24,15 @@ HttpConnection HttpConnection_init(HttpConnection conn, http_type_t type) {
 	conn->type = type;
 	MemBlock_init(&conn->data, INIT_DATA_SIZE);
 	/* NOTICE 0 is used to indicate there is no value */
+	conn->data.len  = 1;
+	conn->data.last = 1;
+}
+
+void HttpConnection_clear(HttpConnection conn) {
+	unsigned type   = conn->type;
+	/* clear all members except data */
+	memset(conn, 0, offsetof(http_connection_t, data));
+	conn->type      = type;
 	conn->data.len  = 1;
 	conn->data.last = 1;
 }
