@@ -13,9 +13,10 @@
 #define XX(a, b, c) a,
 typedef enum log_level {
 	LOG_LV(XX)
-} log_level_t;
+} LogLevel_t;
 #undef XX
 
+/*
 typedef struct log {
 	handler_t  server;
 	handler_t  client;
@@ -35,5 +36,18 @@ void Log_close(Log);
 void Log_record(Log, log_level_t, const char*, ...);
 
 void Log_runServer(Log);
+*/
+
+typedef struct logger {
+	pthread_mutex_t* mutex;
+	void*     addr;
+	char*     buf;
+	uint16_t* len;
+	handler_t file;
+} Logger_t, *Logger;
+
+Logger Logger_init(Logger, const char*);
+void   Logger_close(Logger);
+void   Logger_record(Logger, LogLevel_t, const char*, ...);
 
 #endif // _LOG_H_
