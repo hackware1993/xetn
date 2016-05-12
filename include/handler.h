@@ -9,7 +9,7 @@ typedef enum htype {
 	H_NONE,
 	H_FILE,
 	H_SOCK,
-	H_POLL
+	H_POLL,
 } htype_t;
 
 typedef struct handler {

@@ -10,7 +10,7 @@
 typedef struct reactor {
 	handler_t  poll;
 	/* watcher array */
-	Watcher*   ws;
+	//Watcher*   ws;
 	/* length of watcher array */
 	uint32_t  wl;
 	int32_t   errnum;
