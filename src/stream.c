@@ -25,19 +25,17 @@ stream_state_t NetStream_readToBuf(NetStream ns) {
 	/* because IO can be blocked */
 	int ret = IO_read(&ns->handler, buf->ptr + buf->end, &len);
 	buf->end += len;
-	switch(ret) {
-		case -1:
-			if(errno == EAGAIN) {
-				return STREAM_PEND;
-			}
-			ns->errnum = errno;
-			return STREAM_ERROR;
-		case 0:
-			return STREAM_DONE;
-		case 1:
-			return STREAM_HUP;
+	if(ret == 0) {
+		return STREAM_DONE;
+	} else if(ret == 1) {
+		return STREAM_HUP;
 	}
-
+	/* ret == -1 */
+	if(errno == EAGAIN) {
+		return STREAM_PEND;
+	}
+	ns->errnum = errno;
+	return STREAM_ERROR;
 }
 
 stream_state_t NetStream_writeFromBuf(NetStream ns) {
@@ -56,16 +54,15 @@ stream_state_t NetStream_writeFromBuf(NetStream ns) {
 		Buffer_setPos(buf, 0);
 		Buffer_setLen(buf, 0);
 	}
-	switch(ret) {
-		case -1:
-			if(errno = EAGAIN) {
-				return STREAM_PEND;
-			}
-			ns->errnum = errno;
-			return STREAM_ERROR;
-		case 0:
-			return STREAM_DONE;
+	if(ret == 0) {
+		return STREAM_DONE;
 	}
+	/* ret == -1 */
+	if(errno == EAGAIN) {
+		return STREAM_PEND;
+	}
+	ns->errnum = errno;
+	return STREAM_ERROR;
 }
 stream_state_t NetStream_readToBufSpec(NetStream ns) {
 	Buffer  buf   = ns->buf;
@@ -77,18 +74,17 @@ stream_state_t NetStream_readToBufSpec(NetStream ns) {
 	/* because IO can be blocked */
 	int ret = IO_readSpec(&ns->handler, buf->ptr + buf->end, &len);
 	buf->end += len;
-	switch(ret) {
-		case -1:
-			if(errno == EAGAIN) {
-				return STREAM_PEND;
-			}
-			ns->errnum = errno;
-			return STREAM_ERROR;
-		case 0:
-			return STREAM_DONE;
-		case 1:
-			return STREAM_HUP;
+	if(ret == 0) {
+		return STREAM_DONE;
+	} else if(ret == 1) {
+		return STREAM_HUP;
 	}
+	/* ret == -1 */
+	if(errno == EAGAIN) {
+		return STREAM_PEND;
+	}
+	ns->errnum = errno;
+	return STREAM_ERROR;
 }
 
 stream_state_t NetStream_writeFromBufSpec(NetStream ns) {
@@ -106,16 +102,15 @@ stream_state_t NetStream_writeFromBufSpec(NetStream ns) {
 		Buffer_setPos(buf, 0);
 		Buffer_setLen(buf, 0);
 	}
-	switch(ret) {
-		case -1:
-			if(errno = EAGAIN) {
-				return STREAM_PEND;
-			}
-			ns->errnum = errno;
-			return STREAM_ERROR;
-		case 0:
-			return STREAM_DONE;
+	if(ret == 0) {
+		return STREAM_DONE;
 	}
+	/* ret == -1 */
+	if(errno == EAGAIN) {
+		return STREAM_PEND;
+	}
+	ns->errnum = errno;
+	return STREAM_ERROR;
 }
 
 FileStream FileStream_init(FileStream stream, Handler h, uint32_t size) {
@@ -149,7 +144,6 @@ void PipeStream_close(PipeStream stream) {
 stream_state_t PipeStream_deliver(PipeStream stream, size_t* len) {
 	ssize_t ret;
 	size_t count = *len;
-	//if(stream->src.type == H_FILE) {
 		ret = sendfile(stream->dest.fileno, stream->src.fileno, NULL, count);
 		if(ret == -1) {
 			if(errno == EAGAIN) {

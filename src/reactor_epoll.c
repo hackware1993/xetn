@@ -1,5 +1,6 @@
 #include "reactor.h"
 #include <stdlib.h>
+#include <stdio.h>
 
 #include <sys/epoll.h>
 
@@ -8,7 +9,7 @@
 
 Reactor Reactor_init(Reactor re) {
 	re->wl = INIT_WATCHER_NUM;
-	re->ws = (Watcher*)calloc(INIT_WATCHER_NUM, sizeof(Watcher));
+	//re->ws = (Watcher*)calloc(INIT_WATCHER_NUM, sizeof(Watcher));
 	fd_t epfd = epoll_create1(0);
 	if(epfd == -1) {
 		//TODO add error processing
@@ -18,18 +19,21 @@ Reactor Reactor_init(Reactor re) {
 }
 
 void Reactor_close(Reactor re) {
-	Watcher wt;
+	//Watcher wt;
+	/*
 	for(uint32_t i = 0; i < re->wl; ++i) {
 		if((wt = re->ws[i]) != NULL) {
 			wt->onClose(wt);
 		}
 	}
 	free(re->ws);
+	*/
 	Handler_close(&re->poll);
 }
 
 void Reactor_register(Reactor re, Watcher wt) {
 	fd_t fd = wt->handler.fileno;
+	/*
 	uint32_t len = re->wl;
 	while(len <= fd) {
 		len <<= 1;
@@ -38,18 +42,21 @@ void Reactor_register(Reactor re, Watcher wt) {
 		re->wl = len;
 		re->ws = (Watcher*)realloc(re->ws, len * sizeof(Watcher));
 	}
+	*/
 	wt->host = re;
-	re->ws[fd] = wt;
+	//re->ws[fd] = wt;
 
 	/* epoll processing */
 	uint32_t events = EPOLLET;
 	switch(wt->event) {
 		case TRIG_EV_READ:  events |= EPOLLIN;  break;
 		case TRIG_EV_WRITE: events |= EPOLLOUT; break;
+		default: break;// should not reach here
 	}
 	struct epoll_event epev;
 	epev.events = events;
-	epev.data.fd = fd;
+	//epev.data.fd = fd;
+	epev.data.ptr = wt;
 	int ret = epoll_ctl(re->poll.fileno, EPOLL_CTL_ADD, fd, &epev);
 	if(ret == -1) {
 		// TODO error processing
@@ -59,7 +66,7 @@ void Reactor_register(Reactor re, Watcher wt) {
 void Reactor_unregister(Reactor re, Watcher wt) {
 	fd_t fd = wt->handler.fileno;
 	wt->host = NULL;
-	re->ws[fd] = NULL;
+	//re->ws[fd] = NULL;
 	/* epoll processing */
 	int ret = epoll_ctl(re->poll.fileno, EPOLL_CTL_DEL, fd, NULL);
 	if(ret == -1) {
@@ -78,10 +85,12 @@ void Reactor_modWatcherEvent(Reactor re, Watcher wt, event_t ev) {
 	switch(wt->event) {
 		case TRIG_EV_READ:  events |= EPOLLIN;  break;
 		case TRIG_EV_WRITE: events |= EPOLLOUT; break;
+		default: break;// should not reach here
 	}
 	struct epoll_event epev;
 	epev.events = events;
-	epev.data.fd = fd;
+	//epev.data.fd = fd;
+	epev.data.ptr = wt;
 	int ret = epoll_ctl(re->poll.fileno, EPOLL_CTL_MOD, fd, &epev);
 	if(ret == -1) {
 		// TODO error processing
@@ -93,9 +102,9 @@ void Reactor_modWatcherEvent(Reactor re, Watcher wt, event_t ev) {
 
 void Reactor_loop(Reactor re, int32_t to) {
 	fd_t    epfd = re->poll.fileno;
-	Watcher* ws = re->ws;
+	//Watcher* ws = re->ws;
 	struct epoll_event events[MAXEVENT];
-	fd_t fds[MAXEVENT];
+	void* fds[MAXEVENT];
 	uint8_t wr_end, rd_begin;
 	struct epoll_event* ev_end;
 	int32_t count;
@@ -112,20 +121,20 @@ void Reactor_loop(Reactor re, int32_t to) {
 		ev_end = events + count;
 		for(struct epoll_event* p = events; p < ev_end; ++p) {
 			if(p->events & EPOLL_WRITE) {
-				fds[wr_end++] = p->data.fd;
+				fds[wr_end++] = p->data.ptr;
 			} else if(p->events & EPOLL_READ) {
-				fds[--rd_begin] = p->data.fd;
+				fds[--rd_begin] = p->data.ptr;
 			}
 		}
 		/* process event fd queue */
 		for(uint8_t i = 0; i < wr_end; ++i) {
-			wt = ws[fds[i]];
-			//wt->onWrite(wt);
+			//wt = ws[fds[i]];
+			wt = (Watcher)fds[i];
 			Watcher_process(wt);
 		}
 		for(uint8_t i = rd_begin; i < MAXEVENT; ++i) {
-			wt = ws[fds[i]];
-			//wt->onRead(wt);
+			//wt = ws[fds[i]];
+			wt = (Watcher)fds[i];
 			Watcher_process(wt);
 		}
 	}

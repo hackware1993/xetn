@@ -180,11 +180,9 @@ Logger Logger_init(Logger logger, const char* filename) {
 	if(ret != 0) { goto ERROR; }
 	return logger;
 ERROR:
-	if(ret != 0) {
-		errno = ret;
-		perror("Logger_initModule");
-		exit(-1);
-	}
+	errno = ret;
+	perror("Logger_initModule");
+	exit(-1);
 }
 
 void Logger_close(Logger logger) {

@@ -17,16 +17,16 @@
 xetn_context_t xetn_ctx;
 
 int Xetn_workerMain(void* args) {
-	Log log = &Xetn_getContext().logger;
-	Log_getClient(log);
-	Log_record(log, LOG_INFO, "Work start");
+	Logger log = &Xetn_getContext().logger;
+	//Logger_getClient(log);
+	Logger_record(log, LOG_INFO, "Work start");
 	printf("Main start\n");
 	Watcher wt = (Watcher)args;
 	reactor_t re;
 	Reactor reactor = Reactor_init(&re);
 	Reactor_register(reactor, wt);
 	printf("Loop start\n");
-	Log_record(log, LOG_INFO, "Loop start");
+	Logger_record(log, LOG_INFO, "Loop start");
 	Reactor_loop(reactor, -1);
 	Reactor_close(reactor);
 	return 0;
@@ -95,13 +95,12 @@ void Xetn_initModule() {
 }
 
 void Xetn_initContext() {
-	Log_init(&Xetn_getContext().logger);
+	Logger_init(&Xetn_getContext().logger, "/tmp/xetn.log");
 }
 
 int main(int argc, char* argv[]) {
-	int np = 1;
+	int np = 2;
 	int pid[np];
-	int ptest = 1;
 	int ret;
 	struct rlimit limit;
 	/* enlarge the current limitition of file descriptors */
@@ -125,9 +124,9 @@ int main(int argc, char* argv[]) {
 	for(int i = 0; i < np; ++i) {
 		pid[i] = Xetn_createWorker(Xetn_workerMain, acc);
 	}
-	Log_getServer(&Xetn_getContext().logger, "/tmp/xetn.log");
+	//Log_getServer(&Xetn_getContext().logger, "/tmp/xetn.log");
 
-	Log_runServer(&Xetn_getContext().logger);
+	//Log_runServer(&Xetn_getContext().logger);
 	for(int i = 0; i < np; ++i) {
 		Xetn_waitWorker(pid[i]);
 	}
