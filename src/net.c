@@ -199,15 +199,15 @@ PRIVATE int SockOption_handle(Handler sock, NetOption oplist) {
 	return 0;
 }
 
-typedef struct __addr {
+typedef struct net_addr {
 	unsigned type;
 	char*    host;
 	char*    serv;
-} __addr_t;
+} NetAddr_t;
 
-#define __addr_free(a) free((a)->host)
+#define FreeAddr(a) free((a)->host)
 
-PRIVATE __addr_t* __addr_get(__addr_t* res, const char* addr) {
+PRIVATE NetAddr_t* GetAddr(NetAddr_t* res, const char* addr) {
 	const char* p = addr;
 	int type = *(int*)p;
 	switch(type) {
@@ -243,7 +243,7 @@ PRIVATE __addr_t* __addr_get(__addr_t* res, const char* addr) {
 }
 
 /* internal sockaddr getting function */
-PRIVATE SockAddr __sockaddr_get(SockAddr addr, __addr_t* url) {
+PRIVATE SockAddr GetSockAddr(SockAddr addr, NetAddr_t* url) {
 	struct addrinfo hints;
 	bzero(&hints, sizeof(struct addrinfo));
 	struct addrinfo* res;
@@ -260,7 +260,7 @@ PRIVATE SockAddr __sockaddr_get(SockAddr addr, __addr_t* url) {
 	}
 	int32_t stat = getaddrinfo(url->host, url->serv, &hints, &res);
 	if(stat != 0) {
-		fprintf(stderr, "__sockaddr_get: %s\n", gai_strerror(stat));
+		fprintf(stderr, "GetSockAddr: %s\n", gai_strerror(stat));
 		exit(EXIT_FAILURE);
 	}
 	*addr = *res->ai_addr;
@@ -269,15 +269,15 @@ PRIVATE SockAddr __sockaddr_get(SockAddr addr, __addr_t* url) {
 }
 
 SockAddr SockAddr_get(SockAddr addr, const char* hs) {
-	__addr_t taddr;
-	__addr_t* ret = __addr_get(&taddr, hs);
+	NetAddr_t taddr;
+	NetAddr_t* ret = GetAddr(&taddr, hs);
 	if(ret == NULL) {
 		fprintf(stderr, "SockAddr_get: %s\n", "invalid addr");
 		exit(EXIT_FAILURE);
 	}
 
-	SockAddr res = __sockaddr_get(addr, ret);
-	__addr_free(ret);
+	SockAddr res = GetSockAddr(addr, ret);
+	FreeAddr(ret);
 	return res;
 }
 
@@ -310,21 +310,21 @@ uint16_t SockAddr_getPort(SockAddr addr) {
 }
 
 Handler TcpServer_create(Handler sock, const char* url, NetOption oplist) {
-	__addr_t addr;
-	__addr_t* ret = __addr_get(&addr, url);
+	NetAddr_t addr;
+	NetAddr_t* ret = GetAddr(&addr, url);
 	if(ret == NULL) {
 		fprintf(stderr, "TcpServer_create::url: %s\n", "invalid server url");
 		exit(EXIT_FAILURE);
 	}
 
 	sockaddr_t sa;
-	SockAddr psa = __sockaddr_get(&sa, ret);
+	SockAddr psa = GetSockAddr(&sa, ret);
 	
 	int32_t fd = socket(psa->sa_family, 
 			(ret->type == 0) ? SOCK_STREAM : SOCK_DGRAM,
 			(ret->type == 0) ? IPPROTO_TCP : IPPROTO_UDP);
 	error_exit(fd == -1, TcpServer_create::socket);
-	__addr_free(ret);
+	FreeAddr(ret);
 
 	sock->fileno = fd;
 	sock->type = H_SOCK;
@@ -343,21 +343,21 @@ Handler TcpServer_create(Handler sock, const char* url, NetOption oplist) {
 }
 
 Handler TcpClient_create(Handler sock, const char* url, NetOption oplist) {
-	__addr_t addr;
-	__addr_t* ret = __addr_get(&addr, url);
+	NetAddr_t addr;
+	NetAddr_t* ret = GetAddr(&addr, url);
 	if(ret == NULL) {
 		fprintf(stderr, "TcpClient_create::url: %s\n", "invalid server url");
 		exit(EXIT_FAILURE);
 	}
 
 	sockaddr_t sa;
-	SockAddr psa = __sockaddr_get(&sa, ret);
+	SockAddr psa = GetSockAddr(&sa, ret);
 	
 	int32_t fd = socket(psa->sa_family, 
 			(ret->type == 0) ? SOCK_STREAM : SOCK_DGRAM,
 			(ret->type == 0) ? IPPROTO_TCP : IPPROTO_UDP);
 	error_exit(fd == -1, tcp_client_create::socket);
-	__addr_free(ret);
+	FreeAddr(ret);
 
 	sock->fileno = fd;
 	sock->type = H_SOCK;
