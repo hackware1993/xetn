@@ -4,6 +4,7 @@
 #include <stddef.h>
 #include <setjmp.h>
 #include <cmocka.h>
+#include <stdlib.h>
 
 typedef union variant {
 	int inum;
@@ -12,7 +13,7 @@ typedef union variant {
 } variant_t;
 
 static int test_setup(void** state) {
-	HashMap map = (HashMap)malloc(sizeof(hash_map_t));
+	HashMap map = (HashMap)malloc(sizeof(HashMap_t));
 	HashMap_init(map);
 	*state = map;
 	return 0;
@@ -44,8 +45,40 @@ static void test_hashmap_put_get(void** state) {
 	assert_ptr_equal(ret, &v4);
 	ret = HashMap_put(map, "v5", &v5);
 	assert_ptr_equal(ret, &v5);
+	ret = HashMap_put(map, "v5", &v5);
+	assert_ptr_equal(ret, NULL);
 
+	Pair list = HashMap_getPairList(map);
+	assert_ptr_not_equal(list, NULL);
+	assert_string_equal(list->key, "v5");
+	assert_ptr_equal(list->val, &v5);
+	assert_ptr_not_equal(list->next, NULL);
+
+	list = list->next;
+	assert_ptr_not_equal(list, NULL);
+	assert_string_equal(list->key, "v4");
+	assert_ptr_equal(list->val, &v4);
+	assert_ptr_not_equal(list->next, NULL);
+
+	list = list->next;
+	assert_ptr_not_equal(list, NULL);
+	assert_string_equal(list->key, "v3");
+	assert_ptr_equal(list->val, &v3);
+	assert_ptr_not_equal(list->next, NULL);
+
+	list = list->next;
+	assert_ptr_not_equal(list, NULL);
+	assert_string_equal(list->key, "v2");
+	assert_ptr_equal(list->val, &v2);
+	assert_ptr_not_equal(list->next, NULL);
 	ret = HashMap_get(map, "v5");
+
+	list = list->next;
+	assert_ptr_not_equal(list, NULL);
+	assert_string_equal(list->key, "v1");
+	assert_ptr_equal(list->val, &v1);
+	assert_ptr_equal(list->next, NULL);
+
 	assert_ptr_equal(ret, &v5);
 	assert_int_equal(*(int*)ret, v5.inum);
 	ret = HashMap_get(map, "v4");
@@ -62,7 +95,7 @@ static void test_hashmap_put_get(void** state) {
 	assert_int_equal(*(int*)ret, v1.inum);
 
 	HashMap_clear(map);
-	assert_ptr_equal(map->nodes, NULL);
+	assert_ptr_equal(map->pairs, NULL);
 }
 
 

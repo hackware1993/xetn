@@ -2,21 +2,24 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include <stddef.h>
 
 typedef struct hash_node {
+	Pair_t            pair;
+	uint32_t          hash;
 	struct hash_node* next;
-	struct hash_node* last;
-	uint32_t hash;
-	void*    val;
-} hash_node_t, *HashNode;
+	struct hash_node* sibling;
+} HashNode_t, *HashNode;
 
-PRIVATE INLINE HashNode HashNode_new(HashMap map, uint32_t hash, void* val) {
-	HashNode node = (HashNode)malloc(sizeof(hash_node_t));
-	node->last = map->nodes;
-	map->nodes = node;
-	node->next = NULL;
-	node->hash = hash;
-	node->val  = val;
+PRIVATE INLINE HashNode HashNode_new(HashMap map, uint32_t hash,
+		const char* key, void* val) {
+	HashNode node   = (HashNode)calloc(1, sizeof(HashNode_t));
+	node->pair.next = map->pairs;
+	map->pairs      = &node->pair;
+	node->hash      = hash;
+	Pair pair       = &node->pair;
+	pair->key       = key;
+	pair->val       = val;
 	return node;
 }
 
@@ -32,15 +35,15 @@ void HashMap_clear(HashMap map) {
 	if(map == NULL) {
 		return;
 	}
-	HashNode p = map->nodes;
-	HashNode temp = NULL;
+	Pair    p = map->pairs;
+	Pair temp = NULL;
 
 	while(p != NULL) {
 		temp = p;
-		p = p->last;
-		free(temp);
+		p = p->next;
+		free((void*)temp - offsetof(HashNode_t, pair));
 	}
-	map->nodes = NULL;
+	map->pairs = NULL;
 	memset(map->bucket, 0, sizeof(HashNode) * map->len);
 }
 
@@ -48,9 +51,9 @@ HashMap HashMap_init(HashMap map) {
 	if(map == NULL) {
 		return NULL;
 	}
-	map->len = INIT_BUCK_SIZE;
+	map->len    = INIT_BUCK_SIZE;
 	map->bucket = (HashNode*)calloc(map->len, sizeof(HashNode));
-	map->nodes = NULL;
+	map->pairs  = NULL;
 	return map;
 }
 
@@ -58,34 +61,60 @@ void HashMap_free(HashMap map) {
 	if(map == NULL) {
 		return;
 	}
-	HashNode p = map->nodes;
-	HashNode temp = NULL;
+	Pair    p = map->pairs;
+	Pair temp = NULL;
 
 	while(p != NULL) {
 		temp = p;
-		p = p->last;
-		free(temp);
+		p = p->next;
+		free((void*)temp - offsetof(HashNode_t, pair));
 	}
-	map->nodes = NULL;
+	free(map->bucket);
+	map->pairs = NULL;
 }
 
 void* HashMap_put(HashMap map, const char* key, void* val) {
 	if(key == NULL) {
 		return NULL;
 	}
-	uint32_t hash = BKDRHash(key);
-	uint32_t index = hash % map->len;
+	uint32_t  hash   = BKDRHash(key);
+	uint32_t  index  = hash % map->len;
 	HashNode* bucket = map->bucket;
-	HashNode  node = HashNode_new(map, hash, val);
-	HashNode  p = bucket[index];
+	HashNode  node   = NULL;
+	HashNode  p      = bucket[index];
 	if(p) {
-		node->next = p->next;
-		p->next = node;
-		bucket[index] = node;
+		/* p points to the tail of list */
+		HashNode tail = p;
+		do {
+			if(p->hash == hash) {
+				HashNode* dp = &p;
+				while(*dp != NULL) {
+					/* if there already exists the node with same key */
+					// TODO: there may exists stack overflow bug, consider using strncmp
+					if(strcmp(key, (*dp)->pair.key) == 0) {
+						return NULL;
+					}
+					dp = &(*dp)->sibling;
+				}
+				node = HashNode_new(map, hash, key, val); 
+				(*dp)->sibling = node;
+				break;
+			}
+			p = p->next;
+		} while(p != tail);
+		if(p == tail) {
+			/* node with same hash doesn't exist */
+			node->next = tail->next;
+			node = HashNode_new(map, hash, key, val); 
+			tail->next = node;
+		}
 	} else {
-		bucket[index] = node;
+		/* link the only node to it self */
+		node = HashNode_new(map, hash, key, val); 
 		node->next = node;
 	}
+	/* setup the new tail */
+	bucket[index] = node;
 	return val;
 }
 
@@ -98,15 +127,31 @@ void* HashMap_get(HashMap map, const char* key) {
 	uint32_t index = hash % map->len;
 	HashNode p = map->bucket[index];
 	if(p) {
-		HashNode end = p;
+		HashNode tail = p;
 		do {
 			if(p->hash == hash) {
-				res = p->val;
+				HashNode* dp = &p;
+				/* if found the target hash, then iterate its subling */
+				/* search the pair through strcmp */
+				// TODO: there may exists stack overflow bug, consider using strncmp
+				while(*dp != NULL) {
+					if(strcmp(key, (*dp)->pair.key) == 0) {
+						/* if found the target key, then setup the res */
+						res = (*dp)->pair.val;
+						break;
+					}
+					dp = &(*dp)->sibling;
+				}
+				/* NOTICE: res can be NULL here */
 				break;
 			}
 			p = p->next;
-		} while(p != end);
+		} while(p != tail);
 	}
 	return res;
+}
+
+Pair HashMap_getPairList(HashMap map) {
+	return map->pairs;
 }
 
