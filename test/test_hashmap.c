@@ -48,54 +48,35 @@ static void test_hashmap_put_get(void** state) {
 	ret = HashMap_put(map, "v5", &v5);
 	assert_ptr_equal(ret, NULL);
 
-	Pair list = HashMap_getPairList(map);
-	assert_ptr_not_equal(list, NULL);
-	assert_string_equal(list->key, "v5");
-	assert_ptr_equal(list->val, &v5);
-	assert_ptr_not_equal(list->next, NULL);
-
-	list = list->next;
-	assert_ptr_not_equal(list, NULL);
-	assert_string_equal(list->key, "v4");
-	assert_ptr_equal(list->val, &v4);
-	assert_ptr_not_equal(list->next, NULL);
-
-	list = list->next;
-	assert_ptr_not_equal(list, NULL);
-	assert_string_equal(list->key, "v3");
-	assert_ptr_equal(list->val, &v3);
-	assert_ptr_not_equal(list->next, NULL);
-
-	list = list->next;
-	assert_ptr_not_equal(list, NULL);
-	assert_string_equal(list->key, "v2");
-	assert_ptr_equal(list->val, &v2);
-	assert_ptr_not_equal(list->next, NULL);
 	ret = HashMap_get(map, "v5");
-
-	list = list->next;
-	assert_ptr_not_equal(list, NULL);
-	assert_string_equal(list->key, "v1");
-	assert_ptr_equal(list->val, &v1);
-	assert_ptr_equal(list->next, NULL);
-
 	assert_ptr_equal(ret, &v5);
 	assert_int_equal(*(int*)ret, v5.inum);
+	assert_int_equal(HashMap_contains(map, "v5"), 1);
 	ret = HashMap_get(map, "v4");
 	assert_ptr_equal(ret, &v4);
 	assert_int_equal(*(int*)ret, v4.inum);
+	assert_int_equal(HashMap_contains(map, "v4"), 1);
 	ret = HashMap_get(map, "v3");
 	assert_ptr_equal(ret, &v3);
 	assert_int_equal(*(int*)ret, v3.inum);
+	assert_int_equal(HashMap_contains(map, "v3"), 1);
 	ret = HashMap_get(map, "v2");
 	assert_ptr_equal(ret, &v2);
 	assert_int_equal(*(int*)ret, v2.inum);
+	assert_int_equal(HashMap_contains(map, "v2"), 1);
 	ret = HashMap_get(map, "v1");
 	assert_ptr_equal(ret, &v1);
 	assert_int_equal(*(int*)ret, v1.inum);
+	assert_int_equal(HashMap_contains(map, "v1"), 1);
+	assert_int_equal(HashMap_contains(map, "vv"), 0);
 
-	HashMap_clear(map);
-	assert_ptr_equal(map->pairs, NULL);
+	ret = HashMap_delete(map, "vv");
+	assert_ptr_equal(ret, NULL);
+	ret = HashMap_delete(map, "v3");
+	assert_ptr_not_equal(ret, NULL);
+	ret = HashMap_get(map, "v3");
+	assert_ptr_equal(ret, NULL);
+	
 }
 
 
