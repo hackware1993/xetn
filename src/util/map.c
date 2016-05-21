@@ -120,7 +120,6 @@ void* HashMap_put(HashMap map, const char* key, void* val) {
 	}
 	uint32_t  hash   = BKDRHash(key);
 	uint32_t  index  = hash % map->len;
-	HashNode  node   = NULL;
 	/* loc the the pointer of place whihc is going to point to the new node */
 	HashNode* loc    = map->bucket + index;
 	while(*loc) {
