@@ -39,7 +39,7 @@ void Log_runServer(Log);
 */
 
 typedef struct logger {
-	pthread_mutex_t* mutex;
+	pthread_spinlock_t* mutex;
 	void*     addr;
 	char*     buf;
 	uint16_t* len;

@@ -141,6 +141,11 @@ const uint8_t LOG_STR_LEN[] = {
 #include <unistd.h>
 #include <sys/mman.h>
 
+#define LOCK_LOGGER(l) \
+	pthread_spin_lock((l)->mutex)
+#define UNLOCK_LOGGER(l) \
+	pthread_spin_unlock((l)->mutex)
+
 PRIVATE inline void FlushLogFile(Logger logger) {
 	size_t len = *logger->len;
 	int8_t ret = IO_writeSpec(&logger->file, logger->buf, &len);
@@ -164,35 +169,28 @@ Logger Logger_init(Logger logger, const char* filename) {
 	}
 	logger->addr  = area;
 	logger->mutex = area;
-	logger->len   = area + sizeof(pthread_mutex_t);
+	logger->len   = area + sizeof(pthread_spinlock_t);
 	*logger->len  = 0;
-	logger->buf   = area + sizeof(pthread_mutex_t) + sizeof(uint16_t);
+	logger->buf   = area + sizeof(pthread_spinlock_t) + sizeof(uint16_t);
 
 	int ret;
-	pthread_mutexattr_t attr;
-	ret = pthread_mutexattr_init(&attr);
-	if(ret != 0) { goto ERROR; }
-	ret = pthread_mutexattr_setpshared(&attr, PTHREAD_PROCESS_SHARED);
-	if(ret != 0) { goto ERROR; }
-	ret = pthread_mutex_init(logger->mutex, &attr);
-	if(ret != 0) { goto ERROR; }
-	ret = pthread_mutexattr_destroy(&attr);
-	if(ret != 0) { goto ERROR; }
+	ret = pthread_spin_init(logger->mutex, PTHREAD_PROCESS_SHARED);
+	if(ret != 0) {
+		errno = ret;
+		perror("Logger_initModule");
+		exit(-1);
+	}
 	return logger;
-ERROR:
-	errno = ret;
-	perror("Logger_initModule");
-	exit(-1);
 }
 
 void Logger_close(Logger logger) {
 	int ret;
 	if(*logger->len > 0) {
-		pthread_mutex_lock(logger->mutex);
+		LOCK_LOGGER(logger);
 		FlushLogFile(logger);
-		pthread_mutex_unlock(logger->mutex);
+		UNLOCK_LOGGER(logger);
 	}
-	ret = pthread_mutex_destroy(logger->mutex);
+	ret = pthread_spin_destroy(logger->mutex);
 	if(ret != 0) {
 		errno = ret;
 		perror("Logger_close");
@@ -208,7 +206,7 @@ void Logger_close(Logger logger) {
 
 #define LOG_MSG_SEP " - "
 void Logger_record(Logger logger, LogLevel_t level, const char* fmt, ...) {
-	pthread_mutex_lock(logger->mutex);
+	LOCK_LOGGER(logger);
 	if((LOG_BUF_LEN << 1) - *logger->len < LOG_MSG_LEN) {
 		FlushLogFile(logger);
 	}
@@ -224,7 +222,6 @@ void Logger_record(Logger logger, LogLevel_t level, const char* fmt, ...) {
 	/* separator "%s - %s" */
 	strncpy(p, LOG_MSG_SEP, 3);
 	p += 3;
-	//*p++ = ' '; *p++ = '-'; *p++ = ' ';
 	va_list varg;
 	va_start(varg, fmt);
 	uint32_t infolen = vsnprintf(p, LOG_MSG_LEN, fmt, varg);
@@ -232,9 +229,7 @@ void Logger_record(Logger logger, LogLevel_t level, const char* fmt, ...) {
 	p += infolen;
 	*p++ = '\n';
 	*logger->len = p - buf;
-	//buf[len++] = '\n';
-	//size_t len = strlen(buf);
-	pthread_mutex_unlock(logger->mutex);
+	UNLOCK_LOGGER(logger);
 }
 /*
  * Benmark: recording 1 million log items costs 3.33 seconds
