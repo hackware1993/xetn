@@ -8,17 +8,18 @@ A simple web application server written in C.
 * [x] HttpCodec
 * [x] Logger
 * [x] ThreadPool(partly)
+* [ ] JsonParser
 * [ ] WsgiCodec(ongoing)
 * [ ] MemPool
 
 ### Dependency
 
-* json-c(conf)
+* json-c
 * pcre
 * luajit2
 * cmocka(unit test)
 
-### Supported Platform
+### Platform
 
 * CentOS: >= 7.0
 * Ubuntu: >= 14.04
