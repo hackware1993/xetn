@@ -331,12 +331,10 @@ ArrayList ArrayList_init(ArrayList li, size_t len) {
 
 void ArrayList_free(ArrayList li, Element_free free_cb) {
 	void** list = li->list;
-	if(free_cb == NULL) {
-		free_cb = free;
-	}
-	size_t i;
-	for(i = 0; i < li->len; ++i) {
-		free_cb(list[i]);
+	if(free_cb) {
+		for(size_t i = 0; i < li->len; ++i) {
+			free_cb(list[i]);
+		}
 	}
 	li->len = 0;
 	li->cap = 0;
@@ -346,34 +344,43 @@ void ArrayList_free(ArrayList li, Element_free free_cb) {
 void ArrayList_push(ArrayList li, void* content) {
 	size_t cur = li->len;
 	size_t cap = li->cap;
-	while(cur >= cap) {
-		cap <<= 1;
-	}
-	if(cap != li->cap) {
+	if(cur >= cap) {
+		while(cur >= cap) {
+			cap <<= 1;
+		}
+		li->list = (void**)realloc(li->list, sizeof(void*) * cap);
 		li->cap = cap;
-		li->list = realloc(li->list, cap);
 	}
-	li->list[li->len++] = content;
+	li->list[cur] = content;
+	li->len = cur + 1;
 }
 
 void* ArrayList_pop(ArrayList li) {
-	return li->list[--li->len];
+	if(li->len > 0) {
+		return li->list[--li->len];
+	}
+	return NULL;
+}
+
+void* ArrayList_top(ArrayList li) {
+	size_t len = li->len;
+	if(len > 0) {
+		return li->list[len - 1];
+	}
+	return NULL;
 }
 
 void ArrayList_set(ArrayList li, size_t index, void* content) {
-	size_t cap = li->cap;
-	while(index >= cap) {
-		cap <<= 1;
+	if(index >= 0 && index < li->len) {
+		li->list[index] = content;
 	}
-	if(cap != li->cap) {
-		li->cap = cap;
-		li->list = realloc(li->list, cap);
-	}
-	li->list[index] = content;
 }
 
 void* ArrayList_get(ArrayList li, size_t index) {
-	return li->list[index];
+	if(index >= 0 && index < li->len) {
+		return li->list[index];
+	}
+	return NULL;
 }
 
 RingList RingList_init(RingList list, size_t size) {
