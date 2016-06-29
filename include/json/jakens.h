@@ -6,6 +6,9 @@
 #include "memblock.h"
 #include "json/jpath.h"
 
+// TODO:
+// check the successful situation of parseFromString and parseFromFile
+
 typedef enum json_type {
 	JSON_STRING,
 	JSON_NUMBER,
@@ -34,7 +37,7 @@ typedef struct json_element {
 	JsonType_t type;
 	union {
 		uint8_t       bol;
-		char*         str;
+		const char*   str;
 		double        num;
 		JsonArray_t   arr;
 		JsonObject_t  obj;
@@ -48,7 +51,6 @@ typedef struct json_pair {
 
 typedef struct json_document {
 	JsonElement_t root;
-	//HashMap_t     map;
 } JsonDocument_t, *JsonDocument;
 
 struct json_parser;
@@ -71,9 +73,9 @@ typedef struct json_parser {
 	atomOpt_t    curOpt;
 	uint8_t      errnum;
 	union {
-		uint8_t bol;
-		double  real;
-		char*   str;
+		uint8_t     bol;
+		double      real;
+		const char* str;
 	} tempVal;
 
 	uint32_t     loc;
@@ -86,7 +88,7 @@ void       JsonParser_close(JsonParser);
 JsonDocument Json_parseFromString(JsonParser, const char*, size_t, JsonDocument);
 JsonDocument Json_parseFromFile(JsonParser, const char*, JsonDocument);
 
-void JsonDocument_free(JsonDocument);
+void        JsonDocument_free(JsonDocument);
 JsonElement JsonDocument_getRoot(JsonDocument);
 JsonElement JsonDocument_putRoot(JsonDocument, JsonType_t);
 JsonElement JsonDocument_findElement(JsonDocument, JPath);

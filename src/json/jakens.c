@@ -167,7 +167,7 @@ static uint8_t EscapeToUtf8(JsonParser parser, const char* str, uint32_t* off, u
 	uint32_t loff = *off;
 	while(loff < len && slen < 4) {
 		/* validate the hex number */
-		if(HEX_MAP[str[loff]] == 0xFF) {
+		if(HEX_MAP[(uint8_t)str[loff]] == 0xFF) {
 			parser->errnum = ERR_UNI;
 			return TOKEN_INVALID;
 		}
@@ -176,11 +176,11 @@ static uint8_t EscapeToUtf8(JsonParser parser, const char* str, uint32_t* off, u
 	*off = loff;
 	if(slen == 4) {
 		parser->sbufLen = 0;
-		uint16_t val = HEX_MAP[buf[0]];
+		uint16_t val = HEX_MAP[(uint8_t)buf[0]];
 		/* platform independent transform */
 		for(uint8_t i = 1; i < 4; ++i) {
 			val <<= 4;
-			val += HEX_MAP[buf[i]];
+			val += HEX_MAP[(uint8_t)buf[i]];
 		}
 		uint8_t ch;
 		MemBlock mblock = &parser->buf;
@@ -190,23 +190,23 @@ static uint8_t EscapeToUtf8(JsonParser parser, const char* str, uint32_t* off, u
 		} else if(val <= 0x7FF) {
 			ch = (char)(val >> 6) | 0xC0;
 			MemBlock_putChar(mblock, ch);
-			ch = (char)val & 0x3F | 0x80;
+			ch = ((char)val & 0x3F) | 0x80;
 			MemBlock_putChar(mblock, ch);
 		} else if(val <= 0xFFFF) {
 			ch = (char)(val >> 12) | 0xE0;
 			MemBlock_putChar(mblock, ch);
-			ch = (char)(val >> 6) & 0x3F | 0x80;
+			ch = ((char)(val >> 6) & 0x3F) | 0x80;
 			MemBlock_putChar(mblock, ch);
-			ch = (char)val & 0x3F | 0x80;
+			ch = ((char)val & 0x3F) | 0x80;
 			MemBlock_putChar(mblock, ch);
 		} else if(val <= 0x10FFFF) {
 			ch = (char)(val >> 18) | 0xF0;
 			MemBlock_putChar(mblock, ch);
-			ch = (char)(val >> 12) & 0x3F | 0x80;
+			ch = ((char)(val >> 12) & 0x3F) | 0x80;
 			MemBlock_putChar(mblock, ch);
-			ch = (char)(val >> 6) & 0x3F | 0x80;
+			ch = ((char)(val >> 6) & 0x3F) | 0x80;
 			MemBlock_putChar(mblock, ch);
-			ch = (char)val & 0x3F | 0x80;
+			ch = ((char)val & 0x3F) | 0x80;
 			MemBlock_putChar(mblock, ch);
 		} else {
 			parser->errnum = ERR_UNI;
@@ -517,6 +517,9 @@ void JsonParser_close(JsonParser parser) {
 }
 
 JsonElement JsonDocument_putRoot(JsonDocument doc, JsonType_t type) {
+	if(type != JSON_OBJECT && type != JSON_ARRAY) {
+		return NULL;
+	}
 	JsonElement res = &doc->root;
 	JsonElement_init(res, type);
 	return res;
@@ -524,6 +527,43 @@ JsonElement JsonDocument_putRoot(JsonDocument doc, JsonType_t type) {
 
 JsonElement JsonDocument_getRoot(JsonDocument doc) {
 	return &doc->root;
+}
+
+static void JsonElement_free(JsonElement ele) {
+	JsonArray arr;
+	JsonObject obj;
+	JsonPair pair;
+	switch(ele->type) {
+		case JSON_NUMBER:
+		case JSON_NULL:
+		case JSON_BOOLEAN:
+			break;
+		case JSON_STRING:
+			free((void*)ele->val.str);
+			break;
+		case JSON_ARRAY:
+			arr = &ele->val.arr;
+			for(uint32_t i = 0; i < arr->len; ++i) {
+				JsonElement_free(arr->elements + i);
+			}
+			free(arr->elements);
+			break;
+		case JSON_OBJECT:
+			obj = &ele->val.obj;
+			for(uint32_t i = 0; i < obj->len; ++i) {
+				pair = obj->pairs + i;
+				free((void*)pair->key);
+				JsonElement_free(&pair->val);
+			}
+			free(obj->pairs);
+			break;
+	}
+	return;
+}
+
+void JsonDocument_free(JsonDocument doc) {
+	JsonElement root = &doc->root;
+	JsonElement_free(root);
 }
 
 JsonElement JsonArray_newElement(JsonElement ele) {
@@ -596,6 +636,7 @@ JsonDocument Json_parseFromFile(JsonParser parser, const char* filename, JsonDoc
 	FILE* file = fopen(filename, "r");
 	if(file == NULL) {
 		parser->errnum = ERR_FOPEN;
+		fclose(file);
 		return NULL;
 	}
 	
@@ -616,16 +657,19 @@ JsonDocument Json_parseFromFile(JsonParser parser, const char* filename, JsonDoc
 		res = Json_parseFromString(parser, buf, len, doc);
 		/* if ERR except ERR_NONE and ERR_PEND happen, return immediately */
 		if(parser->errnum > ERR_PEND) {
+			fclose(file);
 			return NULL;
 		}
 	}
 	/* all content is passed to parser */
 	if(TopToken(parser) != TOKEN_END) {
+		fclose(file);
 		return NULL;
 	}
 	/* top == TOKEN_END && errnum == ERR_PEND */
 	parser->errnum = ERR_NONE;
-	return doc;
+	fclose(file);
+	return res;
 }
 
 JsonDocument Json_parseFromString(JsonParser parser, const char* str, size_t len, JsonDocument doc) {
