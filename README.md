@@ -8,7 +8,7 @@ A simple web application server written in C.
 * [x] HttpCodec
 * [x] Logger
 * [x] ThreadPool(partly)
-* [ ] JsonParser
+* [x] JsonParser
 * [ ] WsgiCodec(ongoing)
 * [ ] MemPool
 
