@@ -4,6 +4,8 @@
 #include <stdarg.h>
 #include "json/jakens.h"
 
+//#define JSON_DEBUG
+
 #define DEFAULT_DEPTH 16
 
 /* character map for hex */
@@ -49,15 +51,11 @@ static uint8_t HEX_MAP[128] = {
 	XX(ERR_FREAD, "FILE: File read error")
 
 #define XX(tk, msg) tk,
-enum {
-	JAKENS_ERROR_MSG(XX)
-};
+enum { JAKENS_ERROR_MSG(XX) };
 #undef XX
 
 #define XX(tk, msg) msg,
-static char* ERROR_MAP[] = {
-	JAKENS_ERROR_MSG(XX)
-};
+static char* ERROR_MAP[] = { JAKENS_ERROR_MSG(XX) };
 #undef XX
 
 #define JAKENS_TOKEN_MAP(XX) \
@@ -84,15 +82,11 @@ static char* ERROR_MAP[] = {
 	XX(TOKEN_CMA)
 
 #define XX(tk) #tk,
-static char* TK_STR[] = {
-	JAKENS_TOKEN_MAP(XX)
-};
+static char* TK_STR[] = { JAKENS_TOKEN_MAP(XX) };
 #undef XX
 
 #define XX(tk) tk,
-typedef enum token {
-	JAKENS_TOKEN_MAP(XX)
-} Token_t;
+typedef enum token { JAKENS_TOKEN_MAP(XX) } Token_t;
 #undef XX
 
 static inline void PushToken(JsonParser parser, Token_t tk) {
@@ -255,7 +249,9 @@ static uint8_t GetStr(JsonParser parser, const char* str, uint32_t* off, uint32_
 				/* skip the last '"' */
 				MemBlock_putStrN(mblock, str + *off, loff - *off - 1);
 				parser->tempVal.str = MemBlock_newStr(mblock);
+#if defined(JSON_DEBUG)
 printf("STR>> %s\n", parser->tempVal.str);
+#endif
 				MemBlock_clear(mblock);
 				*off = loff;
 				parser->curOpt = NULL;
@@ -302,7 +298,9 @@ static uint8_t GetNum(JsonParser parser, const char* str, uint32_t* off, uint32_
 				}
 				MemBlock_clear(mblock);
 				parser->curOpt = NULL;
+#if defined(JSON_DEBUG)
 printf("NUM>> %lf\n", parser->tempVal.real);
+#endif
 				return TOKEN_NUM;
 			//default:
 			//	*off = loff;
@@ -328,7 +326,9 @@ static uint8_t GetTrue(JsonParser parser, const char* str, uint32_t* off, uint32
 		if(strncmp(buf, "true", 4) == 0) {
 			parser->curOpt = NULL;
 			parser->tempVal.bol = 1;
+#if defined(JSON_DEBUG)
 printf("BOL: true\n");
+#endif
 			return TOKEN_BOOL;
 		}
 		parser->errnum = ERR_BOOL;
@@ -351,7 +351,9 @@ static uint8_t GetFalse(JsonParser parser, const char* str, uint32_t* off, uint3
 		if(strncmp(buf, "false", 5) == 0) {
 			parser->curOpt = NULL;
 			parser->tempVal.bol = 0;
+#if defined(JSON_DEBUG)
 printf("BOL: false\n");
+#endif
 			return TOKEN_BOOL;
 		}
 		parser->errnum = ERR_BOOL;
@@ -449,15 +451,15 @@ AGAIN:
 
 JsonArray JsonArray_init(JsonArray arr) {
 	arr->len = 0;
-	arr->cap = 8;
-	arr->elements = (JsonElement)calloc(8, sizeof(JsonElement_t));
+	arr->cap = 4;
+	arr->elements = (JsonElement)calloc(4, sizeof(JsonElement_t));
 	return arr;
 }
 
 JsonObject JsonObject_init(JsonObject obj) {
 	obj->len = 0;
-	obj->cap = 8;
-	obj->pairs = (JsonPair)calloc(8, sizeof(JsonPair_t));
+	obj->cap = 4;
+	obj->pairs = (JsonPair)calloc(4, sizeof(JsonPair_t));
 	return obj;
 }
 
@@ -487,33 +489,37 @@ JsonElement JsonElement_init(JsonElement ele, JsonType_t type) {
 }
 
 
-JsonParser JsonParser_init(JsonParser parser) {
-	ArrayList_init(&parser->stack, DEFAULT_DEPTH);
+JsonParser JsonParser_init(JsonParser self) {
+	ArrayList_init(&self->stack, DEFAULT_DEPTH);
 
-	MemBlock_init(&parser->buf, 1024);
+	MemBlock_init(&self->buf, 1024);
 
 	/* initialize the stack for token stack */
-	parser->token.cap = DEFAULT_DEPTH;
-	parser->token.len = 0;
-	parser->token.stack = (uint8_t*)malloc(sizeof(uint8_t) * DEFAULT_DEPTH);
+	self->token.cap = DEFAULT_DEPTH;
+	self->token.len = 0;
+	self->token.stack = (uint8_t*)malloc(sizeof(uint8_t) * DEFAULT_DEPTH);
 
 	/* the line number of parser */
-	parser->loc = 1;
+	self->loc = 1;
 
-	parser->curOpt = NULL;
-	parser->curEle = NULL;
+	self->curOpt = NULL;
+	self->curEle = NULL;
 
-	parser->sbufLen = 0;
-	parser->errnum = ERR_NONE;
+	self->sbufLen = 0;
+	self->errnum = ERR_NONE;
 
-	PushTokens(parser, 2, TOKEN_END, TOKEN_START);
-	return parser;
+	PushTokens(self, 2, TOKEN_END, TOKEN_START);
+	return self;
 }
 
-void JsonParser_close(JsonParser parser) {
-	ArrayList_free(&parser->stack, NULL);
-	MemBlock_free(&parser->buf);
-	free(parser->token.stack);
+void JsonParser_close(JsonParser self) {
+	ArrayList_free(&self->stack, NULL);
+	MemBlock_free(&self->buf);
+	free(self->token.stack);
+}
+
+const char* JsonParser_getErrorMsg(JsonParser self) {
+	return ERROR_MAP[(uint8_t)self->errnum];
 }
 
 JsonElement JsonDocument_putRoot(JsonDocument doc, JsonType_t type) {
@@ -630,12 +636,12 @@ JsonElement JsonObject_getElement(JsonElement ele, const char* key) {
 }
 
 
-JsonDocument Json_parseFromFile(JsonParser parser, const char* filename, JsonDocument doc) {
+JsonDocument Json_parseFromFile(JsonParser self, const char* filename, JsonDocument doc) {
 	/* use mode r instead of rb */
 	/* to avoid process the different newline CR on different platforms */
 	FILE* file = fopen(filename, "r");
 	if(file == NULL) {
-		parser->errnum = ERR_FOPEN;
+		self->errnum = ERR_FOPEN;
 		fclose(file);
 		return NULL;
 	}
@@ -648,27 +654,28 @@ JsonDocument Json_parseFromFile(JsonParser parser, const char* filename, JsonDoc
 		len = fread(buf, 1, 4096, file);
 		if(len < 4096) {
 			if(ferror(file)) {
-				parser->errnum = ERR_FREAD;
+				self->errnum = ERR_FREAD;
 				return NULL;
 			}
-			//buf[len++] = '\0';
 			isFinish = 1;
 		}
-		res = Json_parseFromString(parser, buf, len, doc);
+		res = Json_parseFromString(self, buf, len, doc);
 		/* if ERR except ERR_NONE and ERR_PEND happen, return immediately */
-		if(parser->errnum > ERR_PEND) {
+		if(self->errnum > ERR_PEND) {
 			fclose(file);
 			return NULL;
 		}
 	}
-	/* all content is passed to parser */
-	if(TopToken(parser) != TOKEN_END) {
-		fclose(file);
-		return NULL;
-	}
-	/* top == TOKEN_END && errnum == ERR_PEND */
-	parser->errnum = ERR_NONE;
+	///* all content is passed to parser */
+	//if(TopToken(self) != TOKEN_END) {
+	//	fclose(file);
+	//	return NULL;
+	//}
+	///* top == TOKEN_END && errnum == ERR_PEND */
+	//self->errnum = ERR_NONE;
+	/* no error happened, and errnum == ERR_NONE or ERR_PEND */
 	fclose(file);
+	/* just let Json_parseFromString to determine if it should return doc */
 	return res;
 }
 
@@ -687,7 +694,9 @@ JsonDocument Json_parseFromString(JsonParser parser, const char* str, size_t len
 		return NULL;
 	}
 	while((top = TopToken(parser)) != TOKEN_NONE) {
-		printf("TOP: %s | TK: %s | SZ: %d\n", TK_STR[TopToken(parser)], TK_STR[tk], parser->token.len);
+#if defined(JSON_DEBUG)
+printf("TOP: %s | TK: %s | SZ: %d\n", TK_STR[TopToken(parser)], TK_STR[tk], parser->token.len);
+#endif
 		switch(top) {
 			case TOKEN_START:
 				nextEle = &doc->root;
@@ -706,10 +715,7 @@ JsonDocument Json_parseFromString(JsonParser parser, const char* str, size_t len
 			case TOKEN_OBJ:
 				if(tk == TOKEN_OBJ_BEGIN) {
 					PopToken(parser);
-					PushTokens(parser, 3,
-							TOKEN_OBJ_END,
-							TOKEN_MEMBERS,
-							TOKEN_OBJ_BEGIN);
+					PushTokens(parser, 3, TOKEN_OBJ_END, TOKEN_MEMBERS, TOKEN_OBJ_BEGIN);
 				} else {
 					parser->errnum = ERR_EOBJ;
 					return NULL;
@@ -717,9 +723,7 @@ JsonDocument Json_parseFromString(JsonParser parser, const char* str, size_t len
 				break;
 			case TOKEN_MEMBERS:
 				if(tk == TOKEN_STR) {
-					PushTokens(parser, 2,
-							TOKEN_CMA,
-							TOKEN_PAIR);
+					PushTokens(parser, 2, TOKEN_CMA, TOKEN_PAIR);
 				} else if(tk == TOKEN_OBJ_END) {
 					PopToken(parser);
 				} else {
@@ -729,12 +733,10 @@ JsonDocument Json_parseFromString(JsonParser parser, const char* str, size_t len
 				break;
 			case TOKEN_PAIR:
 				if(tk == TOKEN_STR) {
-					parser->curEle = JsonObject_newElement((JsonElement)ArrayList_top(stack), parser->tempVal.str);
+					parser->curEle = JsonObject_newElement(
+							(JsonElement)ArrayList_top(stack), parser->tempVal.str);
 					PopToken(parser);
-					PushTokens(parser, 3,
-							TOKEN_VAL,
-							TOKEN_COL,
-							TOKEN_STR);
+					PushTokens(parser, 3, TOKEN_VAL, TOKEN_COL, TOKEN_STR);
 				} else {
 					parser->errnum = ERR_EPAIR;
 					return NULL;
@@ -743,10 +745,7 @@ JsonDocument Json_parseFromString(JsonParser parser, const char* str, size_t len
 			case TOKEN_ARR:
 				if(tk == TOKEN_ARR_BEGIN) {
 					PopToken(parser);
-					PushTokens(parser, 3,
-							TOKEN_ARR_END,
-							TOKEN_ELEMENTS,
-							TOKEN_ARR_BEGIN);
+					PushTokens(parser, 3, TOKEN_ARR_END, TOKEN_ELEMENTS, TOKEN_ARR_BEGIN);
 				} else {
 					parser->errnum = ERR_EARR;
 					return NULL;
@@ -759,9 +758,7 @@ JsonDocument Json_parseFromString(JsonParser parser, const char* str, size_t len
 					case TOKEN_STR:  case TOKEN_NUM:
 					case TOKEN_BOOL: case TOKEN_NULL:
 						parser->curEle = JsonArray_newElement((JsonElement)ArrayList_top(stack));
-						PushTokens(parser, 2, 
-								TOKEN_CMA,
-								TOKEN_VAL);
+						PushTokens(parser, 2, TOKEN_CMA, TOKEN_VAL);
 						break;
 					case TOKEN_ARR_END:
 						PopToken(parser);
@@ -817,7 +814,7 @@ JsonDocument Json_parseFromString(JsonParser parser, const char* str, size_t len
 				} 
 				/* do not pop TOKEN_END */
 				/* used to prevent continue parsing */
-				parser->errnum = 0;
+				parser->errnum = ERR_NONE;
 				return doc;
 			case TOKEN_CMA:
 				/* comma can be skip */
@@ -834,6 +831,10 @@ JsonDocument Json_parseFromString(JsonParser parser, const char* str, size_t len
 					PopToken(parser);
 					tk = GetNextToken(parser, str, &off, len);
 					if(tk == TOKEN_PEND) {
+						if(TopToken(parser) == TOKEN_END) {
+							parser->errnum = ERR_NONE;
+							return doc;
+						}
 						parser->errnum = ERR_PEND;
 						return NULL;
 					} else if(tk == TOKEN_INVALID) {

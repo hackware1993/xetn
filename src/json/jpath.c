@@ -61,14 +61,14 @@ static void AddIndex(JPath path, uint32_t num) {
 static uint8_t GetIndex(JPath path, const char* str, uint32_t* off, uint32_t len) {
 	uint32_t val = 0;
 	uint32_t loff = *off;
-	if(CHAR_MAP[str[loff]] != 0xAA) {
+	if(CHAR_MAP[(uint8_t)str[loff]] != 0xAA) {
 		return 0;
 	}
 
 	char ch;
 	while(loff < len) {
 		ch = str[loff];
-		if(CHAR_MAP[ch] == 0xAA) {
+		if(CHAR_MAP[(uint8_t)ch] == 0xAA) {
 			val = val * 10 + (ch - '0');
 			++loff;
 		} else if(ch != ']'){
@@ -87,14 +87,14 @@ static uint8_t GetIndex(JPath path, const char* str, uint32_t* off, uint32_t len
 static uint8_t GetPoint(JPath path, const char* str, uint32_t* off, uint32_t len) {
 	uint32_t begin = *off;
 	uint32_t loff  = begin;
-	if(CHAR_MAP[str[loff]] == 0x00) {
+	if(CHAR_MAP[(uint8_t)str[loff]] == 0x00) {
 		return 0;
 	}
 
 	char ch;
 	while(loff < len) {
 		ch = str[loff];
-		if(CHAR_MAP[ch] >= 0xAA) {
+		if(CHAR_MAP[(uint8_t)ch] >= 0xAA) {
 			++loff;
 		} else {
 			break;

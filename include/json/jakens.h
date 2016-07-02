@@ -6,9 +6,6 @@
 #include "memblock.h"
 #include "json/jpath.h"
 
-// TODO:
-// check the successful situation of parseFromString and parseFromFile
-
 typedef enum json_type {
 	JSON_STRING,
 	JSON_NUMBER,
@@ -53,9 +50,6 @@ typedef struct json_document {
 	JsonElement_t root;
 } JsonDocument_t, *JsonDocument;
 
-struct json_parser;
-typedef uint8_t (*atomOpt_t)(struct json_parser*, const char*, uint32_t*, uint32_t);
-
 typedef struct json_parser {
 	ArrayList_t stack;
 
@@ -70,7 +64,8 @@ typedef struct json_parser {
 	uint8_t      sbufLen;
 	JsonElement  curEle;
 	/* used to record the function which is pended */
-	atomOpt_t    curOpt;
+	uint8_t    (*curOpt)
+		(struct json_parser*, const char*, uint32_t*, uint32_t);
 	uint8_t      errnum;
 	union {
 		uint8_t     bol;
@@ -81,9 +76,9 @@ typedef struct json_parser {
 	uint32_t     loc;
 } JsonParser_t, *JsonParser;
 
-
 JsonParser JsonParser_init(JsonParser);
 void       JsonParser_close(JsonParser);
+const char* JsonParser_getErrorMsg(JsonParser);
 
 JsonDocument Json_parseFromString(JsonParser, const char*, size_t, JsonDocument);
 JsonDocument Json_parseFromFile(JsonParser, const char*, JsonDocument);
@@ -93,16 +88,16 @@ JsonElement JsonDocument_getRoot(JsonDocument);
 JsonElement JsonDocument_putRoot(JsonDocument, JsonType_t);
 JsonElement JsonDocument_findElement(JsonDocument, JPath);
 
-#define JsonElement_getType(e) ((e)->type)
+#define JsonElement_getType(e)    ((e)->type)
 #define JsonElement_setType(e, t) (e)->type = (t)
 
 #define JsonElement_isNull(e)  ((e)->type == JSON_NULL)
 #define JsonElement_getStr(e)  (e)->val.str
 #define JsonElement_getBool(e) (e)->val.bol
 #define JsonElement_getNum(e)  (e)->val.num
-#define JsonElement_setStr(e, v)  (e)->val.str = (v)
+#define JsonElement_setStr (e, v) (e)->val.str = (v)
 #define JsonElement_setBool(e, v) (e)->val.bol = (v)
-#define JsonElement_setNum(e, v)  (e)->val.num = (v)
+#define JsonElement_setNum (e, v) (e)->val.num = (v)
 
 JsonElement JsonObject_putElement(JsonElement, const char*, JsonType_t);
 JsonElement JsonObject_getElement(JsonElement, const char*);
