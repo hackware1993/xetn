@@ -23,18 +23,18 @@ typedef void (*Element_free)(void*);
 
 typedef struct slink {
 	struct slink *next;
-} slink_t, *SLink; 
+} SLink_t, *SLink; 
 
 typedef struct dlink {
 	struct dlink* prev;
 	struct dlink* next;
-} dlink_t, *DLink;
+} DLink_t, *DLink;
 
 /* LinkedList with single link */
 typedef struct slink_list {
 	SLink  list;
 	size_t len;
-} slink_list_t, *SLinkList;
+} SLinkList_t, *SLinkList;
 
 SLinkList SLinkList_init(SLinkList);
 void      SLinkList_free(SLinkList, Element_free);
@@ -51,7 +51,7 @@ void      SLinkList_inverse(SLinkList);
 typedef struct dlink_list {
 	DLink list;
 	size_t len;
-} dlink_list_t, *DLinkList;
+} DLinkList_t, *DLinkList;
 
 DLinkList DLinkList_init(DLinkList);
 void      DLinkList_free(DLinkList, Element_free);
@@ -80,9 +80,9 @@ void*     ArrayList_pop(ArrayList);
 void*     ArrayList_top(ArrayList);
 void      ArrayList_set(ArrayList, size_t, void*);
 void*     ArrayList_get(ArrayList, size_t);
-#define   ArrayList_length(l)  ((l)->len)
+#define   ArrayList_length(l)   ((l)->len)
 #define   ArrayList_capacity(l) ((l)->cap)
-#define   ArrayList_clear(l) ((l)->len = 0)
+#define   ArrayList_clear(l)    ((l)->len = 0)
 
 /* Size-fixed RingList */
 typedef struct ring_list {
@@ -91,7 +91,7 @@ typedef struct ring_list {
 	size_t cap;
 	size_t len;
 	void*  *zone;
-} ring_list_t, *RingList;
+} RingList_t, *RingList;
 
 RingList RingList_init(RingList, size_t);
 void     RingList_free(RingList, Element_free);
