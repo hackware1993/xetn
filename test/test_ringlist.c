@@ -6,12 +6,12 @@
 #include <cmocka.h>
 
 static int test_setup(void** state) {
-	RingList list = (RingList)malloc(sizeof(RingList));
+	RingList list = (RingList)malloc(sizeof(RingList_t));
 	*state = list;
 	return 0;
 }
 static int test_teardown(void** state) {
-	RingList_close((RingList)*state);
+	RingList_free((RingList)*state, NULL);
 	return 0;
 }
 

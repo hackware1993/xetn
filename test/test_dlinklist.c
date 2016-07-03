@@ -8,11 +8,11 @@
 
 typedef struct node {
 	int val;
-	dlink_t link;
+	DLink_t link;
 } node_t, *Node;
 
 static int test_setup(void** state) {
-	DLinkList list = (DLinkList)malloc(sizeof(dlink_list_t));
+	DLinkList list = (DLinkList)malloc(sizeof(DLinkList_t));
 	DLinkList_init(list);
 	*state = list;
 	return 0;
@@ -121,7 +121,7 @@ static void test_linklist_append(void** state) {
 	DLinkList list = (DLinkList)*state;
 	assert_int_equal(DLinkList_length(list), 0);
 
-	dlink_list_t li1, li2;
+	DLinkList_t li1, li2;
 	DLinkList_init(&li1);
 	DLinkList_init(&li2);
 

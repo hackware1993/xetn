@@ -1,4 +1,4 @@
-#include "../src/buffer.h"
+#include "buffer.h"
 
 #include <stdarg.h>
 #include <stddef.h>

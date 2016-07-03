@@ -1,5 +1,5 @@
-#include "../src/http/codec.h"
-#include "../src/http/connection.h"
+#include "http/codec.h"
+#include "http/connection.h"
 
 #include <stdarg.h>
 #include <stddef.h>
