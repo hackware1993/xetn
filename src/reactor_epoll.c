@@ -1,21 +1,24 @@
 #include "reactor.h"
 #include <stdlib.h>
 #include <stdio.h>
+#include <errno.h>
 
 #include <sys/epoll.h>
 
 #define MAX_WATCHER_NUM 65536
 #define INIT_WATCHER_NUM 4096
 
-Reactor Reactor_init(Reactor re) {
-	re->wl = INIT_WATCHER_NUM;
+Reactor Reactor_init(Reactor self) {
+	self->signal = 0;
+	self->wl = INIT_WATCHER_NUM;
+	self->signal = 0;
 	//re->ws = (Watcher*)calloc(INIT_WATCHER_NUM, sizeof(Watcher));
 	fd_t epfd = epoll_create1(0);
 	if(epfd == -1) {
 		//TODO add error processing
 	}
-	Handler_init(&re->poll, epfd, H_POLL);
-	return re;
+	Handler_init(&self->poll, epfd, H_POLL);
+	return self;
 }
 
 void Reactor_close(Reactor re) {
@@ -109,11 +112,16 @@ void Reactor_loop(Reactor re, int32_t to) {
 	struct epoll_event* ev_end;
 	int32_t count;
 	Watcher wt;
-	while(1) {
+	uint32_t* sig = &re->signal;
+	while(*sig == 0) {
 		wr_end = 0;
 		rd_begin = MAXEVENT;
 		count = epoll_wait(epfd, events, MAXEVENT, to);
 		if(count == -1) {
+			if(errno == EINTR) {
+				// TODO: check here
+				return;
+			}
 			perror("Reactor_loop");
 			exit(-1);
 			// TODO error processing

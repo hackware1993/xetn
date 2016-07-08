@@ -14,7 +14,8 @@ typedef struct reactor {
 	/* length of watcher array */
 	uint32_t  wl;
 	int32_t   errnum;
-} reactor_t, *Reactor;
+	uint32_t  signal;
+} Reactor_t, *Reactor;
 
 Reactor Reactor_init(Reactor);
 void    Reactor_close(Reactor);
